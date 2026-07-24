@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "studentsync",
+      "runtimeExecutable": "cmd.exe",
+      "runtimeArgs": ["/d", "/c", "C:\\Users\\abdim\\Studentsync\\.claude\\dev.cmd"],
+      "port": 5173
+    }
+  ]
+}

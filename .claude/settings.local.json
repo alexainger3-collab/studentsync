@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(claude-api)",
+      "Skill(claude-api:*)",
+      "Bash(npm --version)",
+      "Bash(mkdir -p \"C:\\\\Users\\\\abdim\\\\Studentsync\\\\server\\\\src\\\\db\" \"C:\\\\Users\\\\abdim\\\\Studentsync\\\\server\\\\src\\\\middleware\" \"C:\\\\Users\\\\abdim\\\\Studentsync\\\\server\\\\src\\\\lib\" \"C:\\\\Users\\\\abdim\\\\Studentsync\\\\server\\\\src\\\\routes\" \"C:\\\\Users\\\\abdim\\\\Studentsync\\\\server\\\\data\" *)",
+      "PowerShell(Invoke-RestMethod -Uri \"http://localhost:8787/api/health\" -Method Get)",
+      "Bash(gh auth *)",
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
+    ]
+  }
+}
