@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   ChevronLeft, ChevronRight, Plus, X, Moon, Settings2, RotateCcw, Check, Loader2,
   Square, CheckSquare, BarChart3, CalendarDays, Bot, RefreshCw, Sparkles, BookOpen, LogOut,
-  Lock, Send,
+  Lock, Send, Sun,
 } from "lucide-react";
 import { COLORS, CATEGORY_ICON, CATEGORY_LABEL, TRACKABLE_CATEGORIES, GlobalStyle } from "./theme.jsx";
 import { AuthProvider, useAuth } from "./AuthContext.jsx";
@@ -726,6 +726,91 @@ function TermThermometer({ term, holidays, weekMonday }) {
           boxShadow: `0 0 10px ${COLORS["Independent Study"]}88`,
         }} />
       </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------------- */
+/*  Today agenda                                                           */
+/* ---------------------------------------------------------------------- */
+function TodayAgenda({ data, completions, onToggleComplete }) {
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const todayISO = toISO(now);
+  const todayWeekDays = useMemo(() => generateWeekSchedule(startOfWeekMonday(now), data), [data]);
+  const today = todayWeekDays.find((d) => d.iso === todayISO);
+  const blocks = today?.blocks || [];
+  const nextBlock = blocks.find((b) => b.start > nowMin);
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+        <div>
+          <h2 className="ss-display" style={{ margin: 0, color: COLORS.textLight, fontSize: 20 }}>
+            {now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+          </h2>
+          {today?.holiday && (
+            <span className="ss-mono" style={{ fontSize: 11, color: COLORS["Independent Study"] }}>
+              Holiday — most activities paused
+            </span>
+          )}
+        </div>
+        {nextBlock && (
+          <span className="ss-mono" style={{ fontSize: 12, color: COLORS.textMuted }}>
+            Next: {nextBlock.label} at {minToLabel(nextBlock.start)}
+          </span>
+        )}
+      </div>
+
+      {blocks.length === 0 ? (
+        <p style={{ color: COLORS.textMuted, fontSize: 13 }}>Nothing scheduled today.</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {blocks.map((b) => {
+            const color = COLORS[b.category] || COLORS.School;
+            const Icon = CATEGORY_ICON[b.category] || BookOpen;
+            const trackable = TRACKABLE_CATEGORIES.includes(b.category);
+            const isDone = trackable && !!completions[`${todayISO}__${b.id}`];
+            const isNow = nowMin >= b.start && nowMin < b.end;
+            const isPast = b.end <= nowMin;
+            return (
+              <div key={b.id} style={{
+                display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 10,
+                background: isNow ? `${color}1f` : COLORS.panel,
+                border: `1px solid ${isNow ? color : COLORS.hair}`,
+                opacity: isPast && !isNow ? 0.6 : 1,
+              }}>
+                <div className="ss-mono" style={{ width: 68, flexShrink: 0, fontSize: 11, color: COLORS.textMuted, lineHeight: 1.4 }}>
+                  {minToLabel(b.start)}<br />{minToLabel(b.end)}
+                </div>
+                <div style={{ width: 3, alignSelf: "stretch", background: color, borderRadius: 2, flexShrink: 0 }} />
+                <Icon size={15} color={color} style={{ flexShrink: 0 }} />
+                <span style={{
+                  flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: COLORS.textLight,
+                  textDecoration: isDone ? "line-through" : "none",
+                }}>
+                  {b.label}
+                </span>
+                {isNow && (
+                  <span className="ss-mono" style={{
+                    fontSize: 10, color, border: `1px solid ${color}55`, padding: "2px 6px",
+                    borderRadius: 6, flexShrink: 0,
+                  }}>NOW</span>
+                )}
+                {trackable && (
+                  <button
+                    onClick={() => onToggleComplete(todayISO, b)}
+                    title={isDone ? "Mark as not done" : "Mark as done"}
+                    style={{ background: "none", border: "none", cursor: "pointer", flexShrink: 0, display: "flex", color: isDone ? color : COLORS.textMuted }}
+                  >
+                    {isDone ? <CheckSquare size={16} /> : <Square size={16} />}
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -1779,6 +1864,17 @@ function Dashboard({ data, setData }) {
 
       <div style={{ display: "flex", gap: 6, marginTop: 18 }}>
         <button
+          onClick={() => setPage("today")}
+          className="ss-mono"
+          style={{
+            display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, cursor: "pointer",
+            fontSize: 12, fontWeight: 600, border: `1px solid ${COLORS.hair}`,
+            background: page === "today" ? COLORS.panelSoft : "transparent",
+            color: page === "today" ? COLORS.textLight : COLORS.textMuted,
+          }}>
+          <Sun size={13} />Today
+        </button>
+        <button
           onClick={() => setPage("calendar")}
           className="ss-mono"
           style={{
@@ -1801,6 +1897,12 @@ function Dashboard({ data, setData }) {
           <BarChart3 size={13} />Statistics
         </button>
       </div>
+
+      {page === "today" && (
+        <div style={{ marginTop: 18 }}>
+          <TodayAgenda data={data} completions={data.completions || {}} onToggleComplete={toggleComplete} />
+        </div>
+      )}
 
       {page === "calendar" ? (
         <div style={{ position: "relative" }}>
@@ -1840,13 +1942,13 @@ function Dashboard({ data, setData }) {
 
           <CalendarGrid weekDays={weekDays} completions={data.completions || {}} onToggleComplete={toggleComplete} />
         </div>
-      ) : (
+      ) : page === "stats" ? (
         <div style={{ marginTop: 18 }}>
           <Locked feature="Statistics">
             <Statistics data={data} />
           </Locked>
         </div>
-      )}
+      ) : null}
 
       {showManage && (
         <ManagePanel data={data} onChange={setData} onClose={() => setShowManage(false)} />
