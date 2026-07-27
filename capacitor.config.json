@@ -3,7 +3,7 @@
   "appName": "StudentSync",
   "webDir": "dist",
   "server": {
-    "url": "https://studentsync.onrender.com",
+    "url": "https://studentsync-cxcx.onrender.com",
     "cleartext": false
   },
   "plugins": {

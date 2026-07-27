@@ -21,7 +21,13 @@
       "Bash(curl -s -o /dev/null -w \"GET /privacy direct API -> %{http_code}\\\\n\" http://localhost:8787/privacy)",
       "Bash(curl -s http://localhost:5173/privacy)",
       "Bash(curl -s http://localhost:8787/privacy)",
-      "Bash(grep -i \"node_modules\\\\|\\\\.env$\\\\|data/.*\\\\.db\")"
+      "Bash(grep -i \"node_modules\\\\|\\\\.env$\\\\|data/.*\\\\.db\")",
+      "Bash(git push *)",
+      "Bash(node -e \"console.log\\(require\\('crypto'\\).randomBytes\\(32\\).toString\\('hex'\\)\\)\")",
+      "Bash(curl -s -o /dev/null -w \"GET /api/health -> %{http_code}\\\\n\" https://studentsync-cxcx.onrender.com/api/health --max-time 60)",
+      "Bash(curl -s https://studentsync-cxcx.onrender.com/api/health --max-time 60)",
+      "Bash(curl -s -o /dev/null -w \"GET / -> %{http_code}\\\\n\" https://studentsync-cxcx.onrender.com/ --max-time 60)",
+      "Bash(git commit *)"
     ]
   }
 }
