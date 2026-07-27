@@ -40,13 +40,18 @@ export function AuthProvider({ children }) {
     setStatus("anon");
   };
 
-  const toggleTier = async () => {
-    const me = await api.toggleTier();
-    setUser(me);
+  const startCheckout = async () => {
+    const { url } = await api.createCheckoutSession();
+    window.location.href = url;
+  };
+
+  const openBillingPortal = async () => {
+    const { url } = await api.createPortalSession();
+    window.location.href = url;
   };
 
   return (
-    <AuthContext.Provider value={{ user, tier: user?.tier || "free", status, signup, login, logout, refresh, toggleTier }}>
+    <AuthContext.Provider value={{ user, tier: user?.tier || "free", status, signup, login, logout, refresh, startCheckout, openBillingPortal }}>
       {children}
     </AuthContext.Provider>
   );

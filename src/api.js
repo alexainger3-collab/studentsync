@@ -25,5 +25,6 @@ export const api = {
   me: () => request("GET", "/auth/me"),
   getData: () => request("GET", "/data"),
   saveData: (data) => request("PUT", "/data", data),
-  toggleTier: () => request("POST", "/account/toggle-tier"),
+  createCheckoutSession: () => request("POST", "/billing/create-checkout-session"),
+  createPortalSession: () => request("POST", "/billing/create-portal-session"),
 };

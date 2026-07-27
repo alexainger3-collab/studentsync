@@ -1634,15 +1634,19 @@ function ScheduleChatWidget({ data }) {
 /*  Dashboard                                                              */
 /* ---------------------------------------------------------------------- */
 function Dashboard({ data, setData }) {
-  const { user, tier, logout, toggleTier } = useAuth();
-  const [togglingTier, setTogglingTier] = useState(false);
+  const { user, tier, logout, startCheckout, openBillingPortal } = useAuth();
+  const [billingBusy, setBillingBusy] = useState(false);
+  const [billingError, setBillingError] = useState("");
 
-  const handleToggleTier = async () => {
-    setTogglingTier(true);
+  const handlePlanBadgeClick = async () => {
+    setBillingBusy(true);
+    setBillingError("");
     try {
-      await toggleTier();
-    } finally {
-      setTogglingTier(false);
+      if (tier === "paid") await openBillingPortal();
+      else await startCheckout();
+    } catch (err) {
+      setBillingError(err.message);
+      setBillingBusy(false);
     }
   };
   const [page, setPage] = useState("calendar");
@@ -1705,6 +1709,16 @@ function Dashboard({ data, setData }) {
           <X size={14} style={{ cursor: "pointer", flexShrink: 0 }} onClick={() => setSyncError("")} />
         </div>
       )}
+      {billingError && (
+        <div style={{
+          display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10,
+          background: `${COLORS.Work}22`, border: `1px solid ${COLORS.Work}55`, borderRadius: 8,
+          padding: "8px 12px", marginBottom: 12, fontSize: 12, color: COLORS.textLight,
+        }}>
+          <span>{billingError}</span>
+          <X size={14} style={{ cursor: "pointer", flexShrink: 0 }} onClick={() => setBillingError("")} />
+        </div>
+      )}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
         <div>
           <h1 className="ss-display" style={{ margin: 0, color: COLORS.textLight, fontSize: 26 }}>StudentSync</h1>
@@ -1718,9 +1732,9 @@ function Dashboard({ data, setData }) {
           )}
           <button
             className="ss-mono"
-            onClick={handleToggleTier}
-            disabled={togglingTier}
-            title="No real billing — flips your own account between plans for testing."
+            onClick={handlePlanBadgeClick}
+            disabled={billingBusy}
+            title={tier === "paid" ? "Manage your subscription" : "Upgrade to the paid plan — $2.99/mo"}
             style={{
               fontSize: 10, letterSpacing: 0.5, padding: "5px 10px", borderRadius: 999, cursor: "pointer",
               border: `1px solid ${tier === "paid" ? COLORS["Independent Study"] : COLORS.hair}`,
@@ -1728,7 +1742,7 @@ function Dashboard({ data, setData }) {
               background: tier === "paid" ? `${COLORS["Independent Study"]}15` : COLORS.panel,
             }}
           >
-            {tier === "paid" ? "PAID PLAN — switch to free" : "FREE PLAN — switch to paid"}
+            {billingBusy ? "…" : tier === "paid" ? "PAID PLAN — manage" : "FREE PLAN — upgrade $2.99/mo"}
           </button>
           <button className="ss-btn-ghost" style={{ borderColor: COLORS.hair, color: COLORS.textLight, background: COLORS.panel }}
             onClick={() => setShowSleepLog(true)}>
@@ -1868,6 +1882,7 @@ function AuthGate() {
 }
 
 function AppShell() {
+  const { refresh } = useAuth();
   const [data, setData] = useState(null);
   const [loadError, setLoadError] = useState("");
 
@@ -1879,6 +1894,29 @@ function AppShell() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Returning from Stripe Checkout — the webhook that actually flips the tier
+  // can lag the redirect by a second or two, so poll briefly rather than
+  // trusting a single refresh.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has("checkout")) return;
+    window.history.replaceState({}, "", window.location.pathname);
+    if (params.get("checkout") !== "success") return;
+
+    let cancelled = false;
+    (async () => {
+      for (let i = 0; i < 6 && !cancelled; i++) {
+        await refresh();
+        if (cancelled) return;
+        const me = await api.me().catch(() => null);
+        if (me?.tier === "paid") return;
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleOnboarded = useCallback((d) => setData(d), []);
 
