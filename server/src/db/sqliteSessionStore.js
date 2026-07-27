@@ -1,18 +1,11 @@
 import session from "express-session";
 import { db } from "./index.js";
 
-const getStmt = db.prepare("SELECT data, expires FROM sessions WHERE sid = ?");
-const upsertStmt = db.prepare(
-  "INSERT INTO sessions (sid, expires, data) VALUES (?, ?, ?) " +
-  "ON CONFLICT(sid) DO UPDATE SET expires = excluded.expires, data = excluded.data"
-);
-const destroyStmt = db.prepare("DELETE FROM sessions WHERE sid = ?");
-const clearExpiredStmt = db.prepare("DELETE FROM sessions WHERE expires < ?");
-
 export class SqliteSessionStore extends session.Store {
-  get(sid, callback) {
+  async get(sid, callback) {
     try {
-      const row = getStmt.get(sid);
+      const { rows } = await db.execute({ sql: "SELECT data, expires FROM sessions WHERE sid = ?", args: [sid] });
+      const row = rows[0];
       if (!row || row.expires < Date.now()) return callback(null, null);
       callback(null, JSON.parse(row.data));
     } catch (err) {
@@ -20,21 +13,24 @@ export class SqliteSessionStore extends session.Store {
     }
   }
 
-  set(sid, sessionData, callback) {
+  async set(sid, sessionData, callback) {
     try {
       const maxAge = sessionData.cookie?.maxAge ?? 24 * 60 * 60 * 1000;
       const expires = Date.now() + maxAge;
-      upsertStmt.run(sid, expires, JSON.stringify(sessionData));
-      clearExpiredStmt.run(Date.now());
+      await db.execute({
+        sql: "INSERT INTO sessions (sid, expires, data) VALUES (?, ?, ?) " +
+          "ON CONFLICT(sid) DO UPDATE SET expires = excluded.expires, data = excluded.data",
+        args: [sid, expires, JSON.stringify(sessionData)],
+      });
       callback?.(null);
     } catch (err) {
       callback?.(err);
     }
   }
 
-  destroy(sid, callback) {
+  async destroy(sid, callback) {
     try {
-      destroyStmt.run(sid);
+      await db.execute({ sql: "DELETE FROM sessions WHERE sid = ?", args: [sid] });
       callback?.(null);
     } catch (err) {
       callback?.(err);
@@ -44,4 +40,13 @@ export class SqliteSessionStore extends session.Store {
   touch(sid, sessionData, callback) {
     this.set(sid, sessionData, callback);
   }
+}
+
+// Expired sessions are swept periodically instead of on every write, since each
+// write is now a network round-trip to the DB rather than a free local-file op.
+export function startSessionCleanup(intervalMs = 10 * 60 * 1000) {
+  const sweep = () => db.execute({ sql: "DELETE FROM sessions WHERE expires < ?", args: [Date.now()] }).catch(() => {});
+  const timer = setInterval(sweep, intervalMs);
+  timer.unref?.();
+  return timer;
 }

@@ -904,7 +904,7 @@ function SchedulingAssistant({ data, category, onConfirm, onClose }) {
       position: "fixed", inset: 0, background: "rgba(10,12,20,.6)", zIndex: 60,
       display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
     }}>
-      <div className="ss-root" style={{
+      <div className="ss-root ss-modal-panel" style={{
         background: COLORS.paper, borderRadius: 18, padding: 28, width: "min(460px, 100%)",
         maxHeight: "88vh", overflowY: "auto",
       }}>
@@ -1153,7 +1153,7 @@ function ManagePanel({ data, onChange, onClose }) {
       position: "fixed", inset: 0, background: "rgba(10,12,20,.6)", zIndex: 50,
       display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
     }}>
-      <div className="ss-root" style={{
+      <div className="ss-root ss-modal-panel" style={{
         background: COLORS.paper, borderRadius: 18, padding: 32, width: "min(680px, 100%)",
         maxHeight: "88vh", overflowY: "auto",
       }}>
@@ -1377,7 +1377,7 @@ function SleepLogModal({ data, onSave, onClose }) {
       position: "fixed", inset: 0, background: "rgba(10,12,20,.6)", zIndex: 50,
       display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
     }}>
-      <div className="ss-root" style={{
+      <div className="ss-root ss-modal-panel" style={{
         background: COLORS.paper, borderRadius: 18, padding: 32, width: "min(440px, 100%)",
         maxHeight: "88vh", overflowY: "auto",
       }}>
@@ -1831,7 +1831,7 @@ function Dashboard({ data, setData }) {
           position: "fixed", inset: 0, background: "rgba(10,12,20,.6)", zIndex: 50,
           display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
         }}>
-          <div style={{ background: COLORS.paper, borderRadius: 16, padding: 26, width: 340 }}>
+          <div className="ss-modal-panel" style={{ background: COLORS.paper, borderRadius: 16, padding: 26, width: 340 }}>
             <h3 style={{ marginTop: 0, color: COLORS.textDark }}>Reset everything?</h3>
             <p style={{ fontSize: 13, color: "#6b6650" }}>
               This clears your sleep setting, term dates, holidays, commitments, ticked-off progress and sleep log, and takes you back to setup.
@@ -1898,7 +1898,7 @@ function AppShell() {
   if (!data) return <Loading />;
 
   return (
-    <div style={{ padding: 4 }}>
+    <div className="ss-app-shell">
       {!data.onboarded ? (
         <div style={{ background: COLORS.ink, borderRadius: 20, padding: "40px 16px" }}>
           <GlobalStyle />

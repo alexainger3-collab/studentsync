@@ -12,35 +12,34 @@ const DEFAULT_APP_DATA = {
   sleepLog: [],
 };
 
-const insertUserStmt = db.prepare(
-  "INSERT INTO users (email, password_hash) VALUES (?, ?)"
-);
-const insertAppDataStmt = db.prepare(
-  "INSERT INTO app_data (user_id, data) VALUES (?, ?)"
-);
-const findByEmailStmt = db.prepare("SELECT * FROM users WHERE email = ?");
-const findByIdStmt = db.prepare("SELECT * FROM users WHERE id = ?");
-const setTierStmt = db.prepare(
-  "UPDATE users SET tier = ?, updated_at = datetime('now') WHERE id = ?"
-);
-
-export function createUser(email, passwordHash) {
-  const info = insertUserStmt.run(email, passwordHash);
+export async function createUser(email, passwordHash) {
+  const info = await db.execute({
+    sql: "INSERT INTO users (email, password_hash) VALUES (?, ?)",
+    args: [email, passwordHash],
+  });
   const userId = Number(info.lastInsertRowid);
-  insertAppDataStmt.run(userId, JSON.stringify(DEFAULT_APP_DATA));
-  return findByIdStmt.get(userId);
+  await db.execute({
+    sql: "INSERT INTO app_data (user_id, data) VALUES (?, ?)",
+    args: [userId, JSON.stringify(DEFAULT_APP_DATA)],
+  });
+  return findUserById(userId);
 }
 
-export function findUserByEmail(email) {
-  return findByEmailStmt.get(email);
+export async function findUserByEmail(email) {
+  const { rows } = await db.execute({ sql: "SELECT * FROM users WHERE email = ?", args: [email] });
+  return rows[0] ?? null;
 }
 
-export function findUserById(id) {
-  return findByIdStmt.get(id);
+export async function findUserById(id) {
+  const { rows } = await db.execute({ sql: "SELECT * FROM users WHERE id = ?", args: [id] });
+  return rows[0] ?? null;
 }
 
-export function setUserTier(userId, tier) {
-  setTierStmt.run(tier, userId);
+export async function setUserTier(userId, tier) {
+  await db.execute({
+    sql: "UPDATE users SET tier = ?, updated_at = datetime('now') WHERE id = ?",
+    args: [tier, userId],
+  });
 }
 
 export function toPublicUser(user) {

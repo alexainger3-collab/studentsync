@@ -1,0 +1,21 @@
+{
+  "appId": "com.studentsync.app",
+  "appName": "StudentSync",
+  "webDir": "dist",
+  "server": {
+    "url": "https://studentsync.onrender.com",
+    "cleartext": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 800,
+      "backgroundColor": "#141928",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#141928",
+      "overlaysWebView": false
+    }
+  }
+}

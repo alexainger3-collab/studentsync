@@ -1,0 +1,11 @@
+<svg width="2732" height="2732" viewBox="0 0 2732 2732" xmlns="http://www.w3.org/2000/svg">
+  <rect width="2732" height="2732" fill="#141928"/>
+  <g transform="translate(1066, 1006)">
+    <rect x="0" y="0" width="600" height="558" rx="52" fill="#F8F4E9"/>
+    <path d="M0 52 a52 52 0 0 1 52 -52 h496 a52 52 0 0 1 52 52 v103 H0 Z" fill="#6C93F5"/>
+    <rect x="116" y="-52" width="43" height="103" rx="21" fill="#141928"/>
+    <rect x="441" y="-52" width="43" height="103" rx="21" fill="#141928"/>
+    <path d="M150 356 L268 474 L484 258" fill="none" stroke="#E8A93D" stroke-width="60" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="1366" y="1780" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="112" fill="#E9E6DC">StudentSync</text>
+</svg>

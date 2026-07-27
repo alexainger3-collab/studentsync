@@ -1,0 +1,12 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1024" height="1024" fill="#141928"/>
+  <!-- calendar page -->
+  <rect x="232" y="272" width="560" height="520" rx="48" fill="#F8F4E9"/>
+  <!-- header strip -->
+  <path d="M232 320 a48 48 0 0 1 48 -48 h464 a48 48 0 0 1 48 48 v96 H232 Z" fill="#6C93F5"/>
+  <!-- binder rings -->
+  <rect x="340" y="224" width="40" height="96" rx="20" fill="#252D42"/>
+  <rect x="644" y="224" width="40" height="96" rx="20" fill="#252D42"/>
+  <!-- checkmark -->
+  <path d="M372 588 L472 688 L672 468" fill="none" stroke="#E8A93D" stroke-width="56" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

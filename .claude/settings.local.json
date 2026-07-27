@@ -9,7 +9,19 @@
       "Bash(gh auth *)",
       "Bash(git init *)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(git config *)",
+      "Bash(curl -s -o /dev/null -w \"GET / -> %{http_code}\\\\n\" http://localhost:8787/)",
+      "Bash(curl -s http://localhost:8787/)",
+      "Bash(curl -s -o /dev/null -w \"GET /some/client/route -> %{http_code}\\\\n\" http://localhost:8787/some/client/route)",
+      "Bash(curl -s -o /dev/null -w \"GET /api/nonexistent -> %{http_code}\\\\n\" http://localhost:8787/api/nonexistent)",
+      "Bash(curl -s -i http://localhost:5173/api/health)",
+      "Bash(curl -s http://localhost:5173/api/health)",
+      "Bash(curl -s -o /dev/null -w \"GET /privacy via proxy -> %{http_code}\\\\n\" http://localhost:5173/privacy)",
+      "Bash(curl -s -o /dev/null -w \"GET /privacy direct API -> %{http_code}\\\\n\" http://localhost:8787/privacy)",
+      "Bash(curl -s http://localhost:5173/privacy)",
+      "Bash(curl -s http://localhost:8787/privacy)",
+      "Bash(grep -i \"node_modules\\\\|\\\\.env$\\\\|data/.*\\\\.db\")"
     ]
   }
 }

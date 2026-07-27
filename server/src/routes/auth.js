@@ -17,12 +17,12 @@ authRouter.post("/signup", async (req, res) => {
   if (password.length < 8) {
     return res.status(400).json({ error: "Password must be at least 8 characters." });
   }
-  if (findUserByEmail(email)) {
+  if (await findUserByEmail(email)) {
     return res.status(409).json({ error: "An account with that email already exists." });
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
-  const user = createUser(email, passwordHash);
+  const user = await createUser(email, passwordHash);
   req.session.userId = user.id;
   res.json(toPublicUser(user));
 });
@@ -31,7 +31,7 @@ authRouter.post("/login", async (req, res) => {
   const email = String(req.body?.email || "").trim().toLowerCase();
   const password = String(req.body?.password || "");
 
-  const user = findUserByEmail(email);
+  const user = await findUserByEmail(email);
   if (!user || !(await bcrypt.compare(password, user.password_hash))) {
     return res.status(401).json({ error: "Incorrect email or password." });
   }
@@ -46,8 +46,8 @@ authRouter.post("/logout", (req, res) => {
   });
 });
 
-authRouter.get("/me", requireAuth, (req, res) => {
-  const user = findUserById(req.session.userId);
+authRouter.get("/me", requireAuth, async (req, res) => {
+  const user = await findUserById(req.session.userId);
   if (!user) return res.status(401).json({ error: "Not signed in." });
   res.json(toPublicUser(user));
 });

@@ -13,3 +13,15 @@ body {
 #root {
   min-height: 100svh;
 }
+
+/* Safe-area padding for the native app shell (notches, status bars). A no-op
+   on the web, where env() resolves to 0. */
+.ss-app-shell {
+  padding: max(4px, env(safe-area-inset-top)) max(4px, env(safe-area-inset-right))
+    max(4px, env(safe-area-inset-bottom)) max(4px, env(safe-area-inset-left));
+}
+
+.ss-modal-panel {
+  padding-top: max(20px, env(safe-area-inset-top));
+  padding-bottom: max(20px, env(safe-area-inset-bottom));
+}
