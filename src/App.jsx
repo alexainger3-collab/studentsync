@@ -1712,9 +1712,9 @@ function Dashboard({ data, setData }) {
             Your week, balanced automatically around what's fixed.
           </p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
           {user && (
-            <span className="ss-mono" style={{ fontSize: 11, color: COLORS.textMuted, marginRight: 4 }}>{user.email}</span>
+            <span className="ss-mono" style={{ fontSize: 11, color: COLORS.textMuted, marginRight: 4, wordBreak: "break-all" }}>{user.email}</span>
           )}
           <button
             className="ss-mono"
