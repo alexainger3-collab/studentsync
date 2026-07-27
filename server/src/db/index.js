@@ -21,6 +21,7 @@ export async function initDb() {
   await db.executeMultiple(schema);
   await addColumnIfMissing("users", "stripe_customer_id", "TEXT");
   await addColumnIfMissing("users", "stripe_subscription_id", "TEXT");
+  await addColumnIfMissing("users", "trial_used", "INTEGER NOT NULL DEFAULT 0");
 }
 
 // `CREATE TABLE IF NOT EXISTS` in schema.sql only helps brand-new tables —

@@ -1527,11 +1527,13 @@ function Statistics({ data }) {
 /*  Schedule Q&A chat widget                                               */
 /* ---------------------------------------------------------------------- */
 function ScheduleChatWidget({ data }) {
-  const { tier, toggleTier } = useAuth();
+  const { tier, user, startCheckout } = useAuth();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [upgrading, setUpgrading] = useState(false);
+  const [upgradeError, setUpgradeError] = useState("");
+  const trialEligible = user?.trialEligible !== false;
 
   const ask = () => {
     const q = input.trim();
@@ -1543,9 +1545,11 @@ function ScheduleChatWidget({ data }) {
 
   const upgrade = async () => {
     setUpgrading(true);
+    setUpgradeError("");
     try {
-      await toggleTier();
-    } finally {
+      await startCheckout();
+    } catch (err) {
+      setUpgradeError(err.message);
       setUpgrading(false);
     }
   };
@@ -1582,12 +1586,13 @@ function ScheduleChatWidget({ data }) {
             <div style={{ padding: 18, textAlign: "center" }}>
               <Lock size={18} color="#9a927a" style={{ marginBottom: 8 }} />
               <p style={{ fontSize: 12, color: "#6b6650", margin: "0 0 12px" }}>
-                Schedule queries are a paid feature.
+                {trialEligible ? "Schedule queries unlock with a 14-day free trial." : "Schedule queries are a paid feature."}
               </p>
-              <button className="ss-btn-primary" onClick={upgrade} disabled={upgrading} style={{ fontSize: 12 }}>
+              <button className="ss-btn-upgrade" onClick={upgrade} disabled={upgrading} style={{ fontSize: 12 }}>
                 {upgrading ? <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} /> : <Sparkles size={13} />}
-                Upgrade to unlock
+                {trialEligible ? "Start free trial" : "Upgrade to unlock"}
               </button>
+              {upgradeError && <p style={{ fontSize: 11, color: COLORS.Work, margin: "8px 0 0" }}>{upgradeError}</p>}
             </div>
           ) : (
             <>
@@ -1635,6 +1640,7 @@ function ScheduleChatWidget({ data }) {
 /* ---------------------------------------------------------------------- */
 function Dashboard({ data, setData }) {
   const { user, tier, logout, startCheckout, openBillingPortal } = useAuth();
+  const trialEligible = user?.trialEligible !== false;
   const [billingBusy, setBillingBusy] = useState(false);
   const [billingError, setBillingError] = useState("");
 
@@ -1734,15 +1740,23 @@ function Dashboard({ data, setData }) {
             className="ss-mono"
             onClick={handlePlanBadgeClick}
             disabled={billingBusy}
-            title={tier === "paid" ? "Manage your subscription" : "Upgrade to the paid plan — $2.99/mo"}
-            style={{
-              fontSize: 10, letterSpacing: 0.5, padding: "5px 10px", borderRadius: 999, cursor: "pointer",
-              border: `1px solid ${tier === "paid" ? COLORS["Independent Study"] : COLORS.hair}`,
-              color: tier === "paid" ? COLORS["Independent Study"] : COLORS.textMuted,
-              background: tier === "paid" ? `${COLORS["Independent Study"]}15` : COLORS.panel,
-            }}
+            title={tier === "paid" ? "Manage your subscription" : trialEligible ? "Start your 14-day free trial" : "Upgrade to the paid plan — $2.99/mo"}
+            style={
+              tier === "paid"
+                ? {
+                    fontSize: 10, letterSpacing: 0.5, padding: "5px 10px", borderRadius: 999, cursor: "pointer",
+                    border: `1px solid ${COLORS["Independent Study"]}`, color: COLORS["Independent Study"],
+                    background: `${COLORS["Independent Study"]}15`,
+                  }
+                : {
+                    fontSize: 10, letterSpacing: 0.5, padding: "6px 12px", borderRadius: 999, cursor: "pointer",
+                    border: "none", color: "#fff",
+                    background: "linear-gradient(135deg, #7B61FF, #17D9C4)",
+                    boxShadow: "0 3px 10px rgba(123,97,255,.4)",
+                  }
+            }
           >
-            {billingBusy ? "…" : tier === "paid" ? "PAID PLAN — manage" : "FREE PLAN — upgrade $2.99/mo"}
+            {billingBusy ? "…" : tier === "paid" ? "PAID PLAN — manage" : trialEligible ? "FREE PLAN — start 14-day trial" : "FREE PLAN — upgrade $2.99/mo"}
           </button>
           <button className="ss-btn-ghost" style={{ borderColor: COLORS.hair, color: COLORS.textLight, background: COLORS.panel }}
             onClick={() => setShowSleepLog(true)}>

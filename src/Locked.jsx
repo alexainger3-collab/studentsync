@@ -4,9 +4,10 @@ import { COLORS } from "./theme.jsx";
 import { useAuth } from "./AuthContext.jsx";
 
 export function Locked({ feature, children }) {
-  const { tier, startCheckout } = useAuth();
+  const { tier, user, startCheckout } = useAuth();
   const [upgrading, setUpgrading] = useState(false);
   const [error, setError] = useState("");
+  const trialEligible = user?.trialEligible !== false;
 
   if (tier === "paid") return children;
 
@@ -34,11 +35,13 @@ export function Locked({ feature, children }) {
         <Lock size={22} color={COLORS.textLight} />
         <div style={{ color: COLORS.textLight, fontWeight: 700, fontSize: 15 }}>{feature} is a paid feature</div>
         <p style={{ color: COLORS.textMuted, fontSize: 12, maxWidth: 280, margin: 0 }}>
-          $2.99/month unlocks {feature.toLowerCase()} and everything else on the paid plan.
+          {trialEligible
+            ? `Try 14 days free, then $2.99/month — unlocks ${feature.toLowerCase()} and everything else.`
+            : `$2.99/month unlocks ${feature.toLowerCase()} and everything else on the paid plan.`}
         </p>
-        <button className="ss-btn-primary" onClick={upgrade} disabled={upgrading}>
+        <button className="ss-btn-upgrade" onClick={upgrade} disabled={upgrading}>
           {upgrading ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Sparkles size={14} />}
-          Upgrade — $2.99/mo
+          {trialEligible ? "Start 14-day free trial" : "Upgrade — $2.99/mo"}
         </button>
         {error && <p style={{ color: COLORS.Work, fontSize: 11, margin: 0 }}>{error}</p>}
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>

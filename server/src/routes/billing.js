@@ -7,6 +7,7 @@ import {
   setSubscriptionByCustomerId,
   hasProcessedBillingEvent,
   markBillingEventProcessed,
+  markTrialUsed,
 } from "../db/users.js";
 
 export const billingRouter = Router();
@@ -25,6 +26,7 @@ billingRouter.post("/create-checkout-session", requireAuth, async (req, res) => 
   }
 
   const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
+  const trialEligible = !user.trial_used;
   const session = await stripe.checkout.sessions.create({
     mode: "subscription",
     customer: customerId,
@@ -35,7 +37,12 @@ billingRouter.post("/create-checkout-session", requireAuth, async (req, res) => 
     // requires a tax code on the product. Not needed for this app — disable it
     // rather than configure tax categorization for a simple subscription.
     managed_payments: { enabled: false },
+    ...(trialEligible ? { subscription_data: { trial_period_days: 14 } } : {}),
   });
+
+  // Mark eagerly (not on webhook) so an abandoned checkout can't be retried
+  // for a fresh trial — one trial per account, regardless of completion.
+  if (trialEligible) await markTrialUsed(user.id);
 
   res.json({ url: session.url });
 });

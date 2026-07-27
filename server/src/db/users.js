@@ -61,6 +61,13 @@ export async function setSubscriptionByCustomerId(customerId, tier, subscription
   });
 }
 
+export async function markTrialUsed(userId) {
+  await db.execute({
+    sql: "UPDATE users SET trial_used = 1, updated_at = datetime('now') WHERE id = ?",
+    args: [userId],
+  });
+}
+
 // Webhook idempotency — Stripe can and will redeliver the same event.
 export async function hasProcessedBillingEvent(eventId) {
   const { rows } = await db.execute({ sql: "SELECT 1 FROM billing_events WHERE stripe_event_id = ?", args: [eventId] });
@@ -75,5 +82,5 @@ export async function markBillingEventProcessed(eventId, type) {
 }
 
 export function toPublicUser(user) {
-  return { id: user.id, email: user.email, tier: user.tier };
+  return { id: user.id, email: user.email, tier: user.tier, trialEligible: !user.trial_used };
 }

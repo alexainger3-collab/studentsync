@@ -66,6 +66,15 @@ export function GlobalStyle() {
       }
       .ss-btn-primary:hover { opacity: .85; }
       .ss-btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+      .ss-btn-upgrade {
+        background: linear-gradient(135deg, #7B61FF, #17D9C4); color: #fff; border: none;
+        border-radius: 8px; padding: 11px 20px; font-weight: 700; font-size: 14px;
+        cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+        box-shadow: 0 4px 14px rgba(123,97,255,.35);
+        transition: transform .15s, box-shadow .15s, opacity .15s;
+      }
+      .ss-btn-upgrade:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(123,97,255,.5); }
+      .ss-btn-upgrade:disabled { opacity: .5; cursor: not-allowed; transform: none; }
       .ss-btn-ghost {
         background: transparent; color: ${COLORS.textDark}; border: 1px solid #DCD5BE;
         border-radius: 8px; padding: 10px 18px; font-weight: 600; font-size: 14px;
