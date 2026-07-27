@@ -27,7 +27,8 @@
       "Bash(curl -s -o /dev/null -w \"GET /api/health -> %{http_code}\\\\n\" https://studentsync-cxcx.onrender.com/api/health --max-time 60)",
       "Bash(curl -s https://studentsync-cxcx.onrender.com/api/health --max-time 60)",
       "Bash(curl -s -o /dev/null -w \"GET / -> %{http_code}\\\\n\" https://studentsync-cxcx.onrender.com/ --max-time 60)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" https://studentsync-cxcx.onrender.com/api/health --max-time 30)"
     ]
   }
 }

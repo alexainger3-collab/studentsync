@@ -422,8 +422,8 @@ function answerScheduleQuery(rawQuery, data) {
 function Loading() {
   return (
     <div className="ss-root" style={{
-      minHeight: 500, display: "flex", alignItems: "center", justifyContent: "center",
-      background: COLORS.ink, color: COLORS.textMuted, borderRadius: 16,
+      minHeight: "100svh", display: "flex", alignItems: "center", justifyContent: "center",
+      background: COLORS.ink, color: COLORS.textMuted,
     }}>
       <GlobalStyle />
       <Loader2 size={22} className="ss-mono" style={{ animation: "spin 1s linear infinite" }} />
@@ -1693,7 +1693,7 @@ function Dashboard({ data, setData }) {
   const legendItems = ["School", "Independent Study", "Sport", "Extracurricular", "Supercurricular", "Work", "Sleep"];
 
   return (
-    <div className="ss-root" style={{ background: COLORS.ink, borderRadius: 20, padding: 28 }}>
+    <div className="ss-root" style={{ background: COLORS.ink, borderRadius: 20, padding: 28, minHeight: "100svh" }}>
       <GlobalStyle />
       {syncError && (
         <div style={{
@@ -1885,8 +1885,8 @@ function AppShell() {
   if (loadError) {
     return (
       <div className="ss-root" style={{
-        minHeight: 500, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12,
-        background: COLORS.ink, color: COLORS.textMuted, borderRadius: 16, padding: 20, textAlign: "center",
+        minHeight: "100svh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12,
+        background: COLORS.ink, color: COLORS.textMuted, padding: 20, textAlign: "center",
       }}>
         <GlobalStyle />
         <span style={{ fontSize: 14, color: COLORS.textLight }}>Couldn't load your data — {loadError}</span>
@@ -1900,7 +1900,10 @@ function AppShell() {
   return (
     <div className="ss-app-shell">
       {!data.onboarded ? (
-        <div style={{ background: COLORS.ink, borderRadius: 20, padding: "40px 16px" }}>
+        <div style={{
+          background: COLORS.ink, borderRadius: 20, padding: "40px 16px", minHeight: "100svh",
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
           <GlobalStyle />
           <Onboarding initial={data} onFinish={handleOnboarded} />
         </div>

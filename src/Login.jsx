@@ -24,7 +24,10 @@ export function Login({ onSwitchToSignup }) {
   };
 
   return (
-    <div className="ss-root" style={{ background: COLORS.ink, borderRadius: 20, padding: "40px 16px" }}>
+    <div className="ss-root" style={{
+      background: COLORS.ink, padding: "40px 16px", minHeight: "100svh",
+      display: "flex", alignItems: "center", justifyContent: "center",
+    }}>
       <GlobalStyle />
       <form onSubmit={submit} style={{
         background: COLORS.paper, borderRadius: 20, padding: "36px 40px", maxWidth: 400,
