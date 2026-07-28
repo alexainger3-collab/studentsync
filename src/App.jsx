@@ -13,7 +13,7 @@ import { Locked } from "./Locked.jsx";
 
 const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const DAY_SHORT = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
-const WAKE_HOUR = 7; // fixed wake time used to derive sleep blocks
+const LEGACY_WAKE_HOUR = 7; // only used to convert old accounts that predate custom bed/wake times
 const STUDY_WINDOW = { start: 8 * 60, end: 22 * 60 }; // 08:00–22:00 in minutes
 
 /* ---------------------------------------------------------------------- */
@@ -60,7 +60,7 @@ const minToHHMM = (mins) => `${pad(Math.floor(mins / 60))}:${pad(mins % 60)}`;
 /* ---------------------------------------------------------------------- */
 const DEFAULT_DATA = {
   onboarded: false,
-  profile: { sleepHours: 8, studyHoursPerWeek: 10 },
+  profile: { bedTime: "23:00", wakeTime: "07:00", studyHoursPerWeek: 10 },
   term: { start: "", end: "" },
   holidays: [],
   commitments: [],
@@ -70,13 +70,43 @@ const DEFAULT_DATA = {
   sleepLog: [],
 };
 
+// Accounts saved before bed/wake times existed only have a sleep-hours
+// duration — derive the equivalent clock times from the old fixed wake hour
+// so their schedule doesn't change until they touch the setting themselves.
+function normalizeProfile(profile) {
+  if (profile.bedTime && profile.wakeTime) return profile;
+  const hours = profile.sleepHours ?? 8;
+  const bedHour = ((LEGACY_WAKE_HOUR - hours) % 24 + 24) % 24;
+  return { ...profile, bedTime: minToHHMM(bedHour * 60), wakeTime: minToHHMM(LEGACY_WAKE_HOUR * 60) };
+}
+function normalizeAppData(d) {
+  return { ...d, profile: normalizeProfile(d.profile) };
+}
+
 /* ---------------------------------------------------------------------- */
 /*  Scheduling engine                                                      */
 /* ---------------------------------------------------------------------- */
-function sleepSegments(sleepHours) {
-  const bedtime = ((WAKE_HOUR - sleepHours) % 24 + 24) % 24;
-  const bedMin = bedtime * 60;
-  const wakeMin = WAKE_HOUR * 60;
+// Minutes of sleep between a bedtime and wake time, handling the overnight wrap.
+function sleepMinutesBetween(bedTime, wakeTime) {
+  const bedMin = timeToMin(bedTime);
+  const wakeMin = timeToMin(wakeTime);
+  let diff = wakeMin - bedMin;
+  if (diff <= 0) diff += 24 * 60;
+  return diff;
+}
+function sleepHoursBetween(bedTime, wakeTime) {
+  return Math.round((sleepMinutesBetween(bedTime, wakeTime) / 60) * 10) / 10;
+}
+function sleepDurationLabel(bedTime, wakeTime) {
+  const mins = sleepMinutesBetween(bedTime, wakeTime);
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m ? `${h}h ${m}m` : `${h}h`;
+}
+
+function sleepSegments(bedTime, wakeTime) {
+  const bedMin = timeToMin(bedTime);
+  const wakeMin = timeToMin(wakeTime);
   if (bedMin < wakeMin) {
     // whole sleep window falls within the same early-morning stretch
     return [{ start: bedMin, end: wakeMin }];
@@ -121,7 +151,7 @@ function generateWeekSchedule(monday, data) {
     const holiday = isHolidayISO(iso, holidays);
     const blocks = [];
 
-    sleepSegments(profile.sleepHours).forEach((seg, idx) =>
+    sleepSegments(profile.bedTime, profile.wakeTime).forEach((seg, idx) =>
       blocks.push({ ...seg, category: "Sleep", label: "Sleep", id: `sleep-${i}-${idx}` })
     );
 
@@ -471,7 +501,7 @@ function Onboarding({ initial, onFinish }) {
   };
 
   const canNext = () => {
-    if (step === 0) return profile.sleepHours >= 4 && profile.sleepHours <= 12;
+    if (step === 0) return !!profile.bedTime && !!profile.wakeTime;
     if (step === 1) return term.start && term.end && term.start < term.end;
     return true;
   };
@@ -521,30 +551,26 @@ function Onboarding({ initial, onFinish }) {
       {/* STEP 0: sleep */}
       {step === 0 && (
         <div>
-          <h3 style={{ margin: "0 0 6px", color: COLORS.textDark }}>How much sleep do you aim for?</h3>
+          <h3 style={{ margin: "0 0 6px", color: COLORS.textDark }}>When do you sleep?</h3>
           <p style={{ color: "#6b6650", fontSize: 13, marginBottom: 14 }}>
-            Protecting rest is the foundation of a focused week. We'll build sleep blocks around a 7:00am wake time.
+            Protecting rest is the foundation of a focused week. Set your usual bedtime and wake-up time.
           </p>
-          <label style={{ fontSize: 13, fontWeight: 600, color: COLORS.textDark }}>Sleep hours per night</label>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8, marginBottom: 10 }}>
-            {[5, 6, 7, 7.5, 8, 8.5, 9, 10].map((n) => (
-              <button key={n} type="button" className="ss-btn-ghost" onClick={() => setProfile((p) => ({ ...p, sleepHours: n }))}
-                style={{
-                  padding: "6px 12px", fontSize: 12,
-                  borderColor: profile.sleepHours === n ? COLORS.School : "#DCD5BE",
-                  color: profile.sleepHours === n ? COLORS.School : COLORS.textDark,
-                }}>
-                {n}h
-              </button>
-            ))}
+          <div style={{ display: "flex", gap: 12 }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, color: COLORS.textDark }}>Bedtime</label>
+              <input type="time" className="ss-input" style={{ marginTop: 6 }}
+                value={profile.bedTime}
+                onChange={(e) => setProfile((p) => ({ ...p, bedTime: e.target.value }))} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, color: COLORS.textDark }}>Wake-up time</label>
+              <input type="time" className="ss-input" style={{ marginTop: 6 }}
+                value={profile.wakeTime}
+                onChange={(e) => setProfile((p) => ({ ...p, wakeTime: e.target.value }))} />
+            </div>
           </div>
-          <input
-            type="number" step="0.25" min="4" max="12" className="ss-input"
-            value={profile.sleepHours}
-            onChange={(e) => setProfile((p) => ({ ...p, sleepHours: Number(e.target.value) }))}
-          />
-          <p style={{ fontSize: 12, color: "#9a927a", marginTop: 6, marginBottom: 0 }}>
-            Pick a preset above or type any value between 4 and 12 hours.
+          <p style={{ fontSize: 12, color: "#9a927a", marginTop: 10, marginBottom: 0 }}>
+            That's {sleepDurationLabel(profile.bedTime, profile.wakeTime)} of sleep.
           </p>
         </div>
       )}
@@ -669,7 +695,7 @@ function Onboarding({ initial, onFinish }) {
         <div>
           <h3 style={{ margin: "0 0 14px", color: COLORS.textDark }}>Review your setup</h3>
           {[
-            ["Sleep", `${profile.sleepHours} hours / night, wake at 7:00am`],
+            ["Sleep", `${minToLabel(timeToMin(profile.bedTime))} – ${minToLabel(timeToMin(profile.wakeTime))} (${sleepDurationLabel(profile.bedTime, profile.wakeTime)})`],
             ["Term", `${term.start} → ${term.end}`],
             ["Holidays", holidays.length ? holidays.map((h) => h.label).join(", ") : "None"],
             ["Commitments", commitments.length ? `${commitments.length} recurring items` : "None"],
@@ -1261,24 +1287,18 @@ function ManagePanel({ data, onChange, onClose }) {
         </div>
 
         <h4 style={{ color: COLORS.textDark, marginBottom: 8 }}>Sleep &amp; study targets</h4>
-        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 20 }}>
-          <div style={{ flex: "1 1 220px" }}>
-            <label style={{ fontSize: 13, fontWeight: 600, color: COLORS.textDark }}>Sleep hours per night</label>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8, marginBottom: 10 }}>
-              {[5, 6, 7, 7.5, 8, 8.5, 9, 10].map((n) => (
-                <button key={n} type="button" className="ss-btn-ghost" onClick={() => setProfile((p) => ({ ...p, sleepHours: n }))}
-                  style={{
-                    padding: "6px 12px", fontSize: 12,
-                    borderColor: profile.sleepHours === n ? COLORS.School : "#DCD5BE",
-                    color: profile.sleepHours === n ? COLORS.School : COLORS.textDark,
-                  }}>
-                  {n}h
-                </button>
-              ))}
-            </div>
-            <input type="number" step="0.25" min="4" max="12" className="ss-input"
-              value={profile.sleepHours}
-              onChange={(e) => setProfile((p) => ({ ...p, sleepHours: Number(e.target.value) }))} />
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 6 }}>
+          <div style={{ flex: "1 1 140px" }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: COLORS.textDark }}>Bedtime</label>
+            <input type="time" className="ss-input" style={{ marginTop: 6 }}
+              value={profile.bedTime}
+              onChange={(e) => setProfile((p) => ({ ...p, bedTime: e.target.value }))} />
+          </div>
+          <div style={{ flex: "1 1 140px" }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: COLORS.textDark }}>Wake-up time</label>
+            <input type="time" className="ss-input" style={{ marginTop: 6 }}
+              value={profile.wakeTime}
+              onChange={(e) => setProfile((p) => ({ ...p, wakeTime: e.target.value }))} />
           </div>
           <div style={{ flex: "1 1 160px" }}>
             <label style={{ fontSize: 13, fontWeight: 600, color: COLORS.textDark }}>Independent study, hours/week</label>
@@ -1287,6 +1307,9 @@ function ManagePanel({ data, onChange, onClose }) {
               onChange={(e) => setProfile((p) => ({ ...p, studyHoursPerWeek: Number(e.target.value) }))} />
           </div>
         </div>
+        <p style={{ fontSize: 12, color: "#9a927a", marginTop: 0, marginBottom: 20 }}>
+          That's {sleepDurationLabel(profile.bedTime, profile.wakeTime)} of sleep.
+        </p>
 
         <h4 style={{ color: COLORS.textDark, marginBottom: 8 }}>Fixed commitments</h4>
         <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
@@ -1460,7 +1483,7 @@ function ManagePanel({ data, onChange, onClose }) {
 /* ---------------------------------------------------------------------- */
 function SleepLogModal({ data, onSave, onClose }) {
   const [entries, setEntries] = useState(data.sleepLog || []);
-  const [form, setForm] = useState({ date: toISO(new Date()), hours: data.profile.sleepHours });
+  const [form, setForm] = useState({ date: toISO(new Date()), hours: sleepHoursBetween(data.profile.bedTime, data.profile.wakeTime) });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -1477,7 +1500,7 @@ function SleepLogModal({ data, onSave, onClose }) {
       }
       return [...list, rec];
     });
-    setForm({ date: toISO(new Date()), hours: data.profile.sleepHours });
+    setForm({ date: toISO(new Date()), hours: sleepHoursBetween(data.profile.bedTime, data.profile.wakeTime) });
   };
 
   const save = async () => {
@@ -1512,7 +1535,7 @@ function SleepLogModal({ data, onSave, onClose }) {
           <X size={20} style={{ cursor: "pointer" }} onClick={onClose} />
         </div>
         <p style={{ color: "#6b6650", fontSize: 13, marginTop: 0, marginBottom: 14 }}>
-          Track how much you actually slept each night — Statistics compares this against your {data.profile.sleepHours}h target.
+          Track how much you actually slept each night — Statistics compares this against your {sleepHoursBetween(data.profile.bedTime, data.profile.wakeTime)}h target.
         </p>
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
           <input type="date" className="ss-input" style={{ flex: "1 1 150px" }} value={form.date}
@@ -1635,13 +1658,13 @@ function Statistics({ data }) {
           title="This week"
           subtitle={`${fmtDayNum(weekStart)} – ${fmtDayNum(weekEnd)}`}
           stats={weekStats}
-          target={data.profile.sleepHours}
+          target={sleepHoursBetween(data.profile.bedTime, data.profile.wakeTime)}
         />
         <StatsCard
           title="This month"
           subtitle={monthStart.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
           stats={monthStats}
-          target={data.profile.sleepHours}
+          target={sleepHoursBetween(data.profile.bedTime, data.profile.wakeTime)}
         />
       </div>
     </div>
@@ -2044,7 +2067,7 @@ function AppShell() {
 
   const load = useCallback(() => {
     setLoadError("");
-    api.getData().then(setData).catch((err) => setLoadError(err.message));
+    api.getData().then((d) => setData(normalizeAppData(d))).catch((err) => setLoadError(err.message));
   }, []);
 
   useEffect(() => {
