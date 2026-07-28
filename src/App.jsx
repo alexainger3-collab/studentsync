@@ -200,11 +200,20 @@ function generateWeekSchedule(monday, data) {
     days.push({ date, iso, holiday, blocks });
   }
 
-  // Auto-fill Independent Study across non-holiday days, round-robin, skipped entirely on holidays
+  // Auto-fill Independent Study across non-holiday days, round-robin, skipped entirely on holidays.
+  // Padding each existing block by the buffer before finding gaps keeps every
+  // auto-placed study session at least that far from anything already on the
+  // day — sleep, commitments, activities, supercurricular — without touching
+  // those blocks themselves, so back-to-back items the user set up manually
+  // are left exactly as scheduled.
+  const AUTO_SCHEDULE_BUFFER = 15;
   let remaining = Math.round(profile.studyHoursPerWeek * 60);
   const gapQueues = days.map((d) => {
     if (d.holiday) return [];
-    const busy = d.blocks.map((b) => ({ start: b.start, end: b.end }));
+    const busy = d.blocks.map((b) => ({
+      start: Math.max(0, b.start - AUTO_SCHEDULE_BUFFER),
+      end: Math.min(24 * 60, b.end + AUTO_SCHEDULE_BUFFER),
+    }));
     return invertWithinWindow(busy, STUDY_WINDOW.start, STUDY_WINDOW.end);
   });
   const CHUNK = 90;
