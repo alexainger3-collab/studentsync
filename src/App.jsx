@@ -526,15 +526,26 @@ function Onboarding({ initial, onFinish }) {
             Protecting rest is the foundation of a focused week. We'll build sleep blocks around a 7:00am wake time.
           </p>
           <label style={{ fontSize: 13, fontWeight: 600, color: COLORS.textDark }}>Sleep hours per night</label>
-          <select
-            className="ss-input" style={{ marginTop: 6 }}
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8, marginBottom: 10 }}>
+            {[5, 6, 7, 7.5, 8, 8.5, 9, 10].map((n) => (
+              <button key={n} type="button" className="ss-btn-ghost" onClick={() => setProfile((p) => ({ ...p, sleepHours: n }))}
+                style={{
+                  padding: "6px 12px", fontSize: 12,
+                  borderColor: profile.sleepHours === n ? COLORS.School : "#DCD5BE",
+                  color: profile.sleepHours === n ? COLORS.School : COLORS.textDark,
+                }}>
+                {n}h
+              </button>
+            ))}
+          </div>
+          <input
+            type="number" step="0.25" min="4" max="12" className="ss-input"
             value={profile.sleepHours}
             onChange={(e) => setProfile((p) => ({ ...p, sleepHours: Number(e.target.value) }))}
-          >
-            {[5, 6, 7, 8, 9, 10].map((n) => (
-              <option key={n} value={n}>{n} hours</option>
-            ))}
-          </select>
+          />
+          <p style={{ fontSize: 12, color: "#9a927a", marginTop: 6, marginBottom: 0 }}>
+            Pick a preset above or type any value between 4 and 12 hours.
+          </p>
         </div>
       )}
 
@@ -1137,6 +1148,7 @@ const ManageList = React.memo(function ManageList({ items, renderLabel, onDelete
   ));
 });
 function ManagePanel({ data, onChange, onClose }) {
+  const [profile, setProfile] = useState(data.profile);
   const [commitments, setCommitments] = useState(data.commitments);
   const [activities, setActivities] = useState(data.activities || []);
   const [supercurricular, setSupercurricular] = useState(data.supercurricular || []);
@@ -1221,7 +1233,7 @@ function ManagePanel({ data, onChange, onClose }) {
   const save = async () => {
     setSaving(true);
     setError("");
-    const next = { ...data, commitments, activities, supercurricular, holidays };
+    const next = { ...data, profile, commitments, activities, supercurricular, holidays };
     try {
       await api.saveData(next);
       onChange(next);
@@ -1246,6 +1258,34 @@ function ManagePanel({ data, onChange, onClose }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
           <h2 className="ss-display" style={{ margin: 0, color: COLORS.textDark }}>Manage your setup</h2>
           <X size={20} style={{ cursor: "pointer" }} onClick={onClose} />
+        </div>
+
+        <h4 style={{ color: COLORS.textDark, marginBottom: 8 }}>Sleep &amp; study targets</h4>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 20 }}>
+          <div style={{ flex: "1 1 220px" }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: COLORS.textDark }}>Sleep hours per night</label>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8, marginBottom: 10 }}>
+              {[5, 6, 7, 7.5, 8, 8.5, 9, 10].map((n) => (
+                <button key={n} type="button" className="ss-btn-ghost" onClick={() => setProfile((p) => ({ ...p, sleepHours: n }))}
+                  style={{
+                    padding: "6px 12px", fontSize: 12,
+                    borderColor: profile.sleepHours === n ? COLORS.School : "#DCD5BE",
+                    color: profile.sleepHours === n ? COLORS.School : COLORS.textDark,
+                  }}>
+                  {n}h
+                </button>
+              ))}
+            </div>
+            <input type="number" step="0.25" min="4" max="12" className="ss-input"
+              value={profile.sleepHours}
+              onChange={(e) => setProfile((p) => ({ ...p, sleepHours: Number(e.target.value) }))} />
+          </div>
+          <div style={{ flex: "1 1 160px" }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: COLORS.textDark }}>Independent study, hours/week</label>
+            <input type="number" min="0" max="40" className="ss-input" style={{ marginTop: 6 }}
+              value={profile.studyHoursPerWeek}
+              onChange={(e) => setProfile((p) => ({ ...p, studyHoursPerWeek: Number(e.target.value) }))} />
+          </div>
         </div>
 
         <h4 style={{ color: COLORS.textDark, marginBottom: 8 }}>Fixed commitments</h4>
