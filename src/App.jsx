@@ -60,7 +60,7 @@ const minToHHMM = (mins) => `${pad(Math.floor(mins / 60))}:${pad(mins % 60)}`;
 /* ---------------------------------------------------------------------- */
 const DEFAULT_DATA = {
   onboarded: false,
-  profile: { bedTime: "23:00", wakeTime: "07:00", studyHoursPerWeek: 10 },
+  profile: { bedTime: "23:00", wakeTime: "07:00", studySubjects: [{ id: "subj-default", label: "Independent Study", hoursPerWeek: 10 }] },
   term: { start: "", end: "" },
   holidays: [],
   commitments: [],
@@ -74,10 +74,16 @@ const DEFAULT_DATA = {
 // duration — derive the equivalent clock times from the old fixed wake hour
 // so their schedule doesn't change until they touch the setting themselves.
 function normalizeProfile(profile) {
-  if (profile.bedTime && profile.wakeTime) return profile;
-  const hours = profile.sleepHours ?? 8;
-  const bedHour = ((LEGACY_WAKE_HOUR - hours) % 24 + 24) % 24;
-  return { ...profile, bedTime: minToHHMM(bedHour * 60), wakeTime: minToHHMM(LEGACY_WAKE_HOUR * 60) };
+  let p = profile;
+  if (!p.bedTime || !p.wakeTime) {
+    const hours = p.sleepHours ?? 8;
+    const bedHour = ((LEGACY_WAKE_HOUR - hours) % 24 + 24) % 24;
+    p = { ...p, bedTime: minToHHMM(bedHour * 60), wakeTime: minToHHMM(LEGACY_WAKE_HOUR * 60) };
+  }
+  if (!p.studySubjects || !p.studySubjects.length) {
+    p = { ...p, studySubjects: [{ id: "subj-legacy", label: "Independent Study", hoursPerWeek: p.studyHoursPerWeek ?? 10 }] };
+  }
+  return p;
 }
 function normalizeAppData(d) {
   return { ...d, profile: normalizeProfile(d.profile) };
@@ -206,8 +212,15 @@ function generateWeekSchedule(monday, data) {
   // day — sleep, commitments, activities, supercurricular — without touching
   // those blocks themselves, so back-to-back items the user set up manually
   // are left exactly as scheduled.
+  //
+  // Subjects rotate too (not just days) so a week with several subjects
+  // interleaves them instead of finishing one subject's whole weekly total
+  // before starting the next — and every block is labeled with the actual
+  // subject rather than a generic "Independent Study" placeholder.
   const AUTO_SCHEDULE_BUFFER = 15;
-  let remaining = Math.round(profile.studyHoursPerWeek * 60);
+  const subjects = (profile.studySubjects || [])
+    .filter((s) => s.hoursPerWeek > 0)
+    .map((s) => ({ ...s, remaining: Math.round(s.hoursPerWeek * 60) }));
   const gapQueues = days.map((d) => {
     if (d.holiday) return [];
     const busy = d.blocks.map((b) => ({
@@ -218,16 +231,27 @@ function generateWeekSchedule(monday, data) {
   });
   const CHUNK = 90;
   let guard = 0;
-  while (remaining > 0 && guard < 500) {
+  let subjectPtr = 0;
+  let totalRemaining = subjects.reduce((sum, s) => sum + s.remaining, 0);
+  while (totalRemaining > 0 && subjects.length && guard < 500) {
     guard++;
     let placedAny = false;
     for (let i = 0; i < 7; i++) {
-      if (remaining <= 0) break;
+      if (totalRemaining <= 0) break;
       const q = gapQueues[i];
       if (!q.length) continue;
+
+      let attempts = 0;
+      while (subjects[subjectPtr].remaining <= 0 && attempts < subjects.length) {
+        subjectPtr = (subjectPtr + 1) % subjects.length;
+        attempts++;
+      }
+      const subject = subjects[subjectPtr];
+      if (subject.remaining <= 0) break; // every subject's weekly total is used up
+
       const gap = q[0];
       const gapLen = gap.end - gap.start;
-      const chunk = Math.min(CHUNK, gapLen, remaining);
+      const chunk = Math.min(CHUNK, gapLen, subject.remaining);
       if (chunk <= 0) {
         q.shift();
         continue;
@@ -236,12 +260,14 @@ function generateWeekSchedule(monday, data) {
         start: gap.start,
         end: gap.start + chunk,
         category: "Independent Study",
-        label: "Independent Study",
-        id: `study-${i}-${gap.start}`,
+        label: subject.label,
+        id: `study-${subject.id}-${i}-${gap.start}`,
       });
       gap.start += chunk;
       if (gap.end - gap.start < 15) q.shift();
-      remaining -= chunk;
+      subject.remaining -= chunk;
+      totalRemaining -= chunk;
+      subjectPtr = (subjectPtr + 1) % subjects.length;
       placedAny = true;
     }
     if (!placedAny) break;
@@ -488,13 +514,14 @@ function Onboarding({ initial, onFinish }) {
 
   const [hForm, setHForm] = useState({ label: "", start: "", end: "" });
   const [cForm, setCForm] = useState({ label: "", category: "School", day: 0, start: "09:00", end: "10:00" });
+  const [subjForm, setSubjForm] = useState({ label: "", hoursPerWeek: 2 });
 
   const steps = [
     "Sleep",
     "Term dates",
     "Holidays",
     "Fixed commitments",
-    "Study target",
+    "Study subjects",
     "Review",
   ];
 
@@ -507,6 +534,17 @@ function Onboarding({ initial, onFinish }) {
     if (!cForm.label || !cForm.start || !cForm.end) return;
     setCommitments((c) => [...c, { ...cForm, day: Number(cForm.day), id: `c-${Date.now()}` }]);
     setCForm({ label: "", category: "School", day: 0, start: "09:00", end: "10:00" });
+  };
+  const addStudySubject = () => {
+    if (!subjForm.label || !subjForm.hoursPerWeek) return;
+    setProfile((p) => ({
+      ...p,
+      studySubjects: [...(p.studySubjects || []), { label: subjForm.label, hoursPerWeek: Number(subjForm.hoursPerWeek), id: `subj-${Date.now()}` }],
+    }));
+    setSubjForm({ label: "", hoursPerWeek: 2 });
+  };
+  const deleteStudySubject = (id) => {
+    setProfile((p) => ({ ...p, studySubjects: (p.studySubjects || []).filter((s) => s.id !== id) }));
   };
 
   const canNext = () => {
@@ -685,17 +723,22 @@ function Onboarding({ initial, onFinish }) {
         </div>
       )}
 
-      {/* STEP 4: study target */}
+      {/* STEP 4: study subjects */}
       {step === 4 && (
         <div>
-          <h3 style={{ margin: "0 0 6px", color: COLORS.textDark }}>Independent study target</h3>
+          <h3 style={{ margin: "0 0 6px", color: COLORS.textDark }}>Independent study subjects</h3>
           <p style={{ color: "#6b6650", fontSize: 13, marginBottom: 14 }}>
-            We'll automatically slot study blocks into your free daytime hours to hit this weekly total — skipped entirely during holidays.
+            Add each subject with its own weekly target — we'll slot study blocks into your free daytime hours and label each one, rotating between subjects. Skipped entirely during holidays.
           </p>
-          <label style={{ fontSize: 13, fontWeight: 600, color: COLORS.textDark }}>Hours per week</label>
-          <input type="number" min={0} max={40} className="ss-input" style={{ marginTop: 6 }}
-            value={profile.studyHoursPerWeek}
-            onChange={(e) => setProfile((p) => ({ ...p, studyHoursPerWeek: Number(e.target.value) }))} />
+          <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+            <input className="ss-input" placeholder="e.g. Chemistry" style={{ flex: "1 1 160px" }}
+              value={subjForm.label} onChange={(e) => setSubjForm((f) => ({ ...f, label: e.target.value }))} />
+            <input type="number" min={0} max={40} className="ss-input" style={{ flex: "1 1 110px" }}
+              placeholder="Hours/week" value={subjForm.hoursPerWeek}
+              onChange={(e) => setSubjForm((f) => ({ ...f, hoursPerWeek: e.target.value }))} />
+            <button className="ss-btn-primary" onClick={addStudySubject}><Plus size={15} /></button>
+          </div>
+          <ManageList items={profile.studySubjects || []} renderLabel={studySubjectLabel} onDelete={deleteStudySubject} emptyText="No subjects added yet." />
         </div>
       )}
 
@@ -708,7 +751,9 @@ function Onboarding({ initial, onFinish }) {
             ["Term", `${term.start} → ${term.end}`],
             ["Holidays", holidays.length ? holidays.map((h) => h.label).join(", ") : "None"],
             ["Commitments", commitments.length ? `${commitments.length} recurring items` : "None"],
-            ["Independent study", `${profile.studyHoursPerWeek} hours / week (auto-scheduled)`],
+            ["Study subjects", (profile.studySubjects || []).length
+              ? `${(profile.studySubjects || []).map((s) => `${s.label} (${s.hoursPerWeek}h)`).join(", ")} — auto-scheduled`
+              : "None"],
           ].map(([k, v]) => (
             <div key={k} style={{
               display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #E2DBC4",
@@ -1165,6 +1210,7 @@ const commitmentLabel = (c) => <>{c.category} · {DAY_SHORT[c.day]} {c.start}–
 const sportLabel = (c) => <>Weekly · {DAY_SHORT[c.day]} {c.start}–{c.end}</>;
 const activityLabel = (a) => <>{a.recurring ? `Weekly · ${DAY_SHORT[a.day]}` : a.date} · {a.start}–{a.end}</>;
 const holidayLabel = (h) => <>{h.start} → {h.end}</>;
+const studySubjectLabel = (s) => <>{s.hoursPerWeek}h / week</>;
 
 // Memoized so typing in an unrelated form field (all of ManagePanel's form state lives in
 // one component) doesn't force every list to re-render — only when `items` itself changes.
@@ -1193,6 +1239,7 @@ function ManagePanel({ data, onChange, onClose }) {
   const [aForm, setAForm] = useState({ label: "", recurring: true, day: 0, date: "", start: "09:00", end: "10:00" });
   const [scForm, setScForm] = useState({ label: "", recurring: true, day: 0, date: "", start: "19:00", end: "20:00" });
   const [hForm, setHForm] = useState({ label: "", start: "", end: "" });
+  const [subjForm, setSubjForm] = useState({ label: "", hoursPerWeek: 2 });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [assistantFor, setAssistantFor] = useState(null);
@@ -1265,6 +1312,17 @@ function ManagePanel({ data, onChange, onClose }) {
     setHolidays((h) => [...h, { ...hForm, id: `h-${Date.now()}` }]);
     setHForm({ label: "", start: "", end: "" });
   };
+  const addStudySubject = () => {
+    if (!subjForm.label || !subjForm.hoursPerWeek) return;
+    setProfile((p) => ({
+      ...p,
+      studySubjects: [...(p.studySubjects || []), { label: subjForm.label, hoursPerWeek: Number(subjForm.hoursPerWeek), id: `subj-${Date.now()}` }],
+    }));
+    setSubjForm({ label: "", hoursPerWeek: 2 });
+  };
+  const deleteStudySubject = useCallback((id) => {
+    setProfile((p) => ({ ...p, studySubjects: (p.studySubjects || []).filter((s) => s.id !== id) }));
+  }, []);
 
   const save = async () => {
     setSaving(true);
@@ -1335,16 +1393,26 @@ function ManagePanel({ data, onChange, onClose }) {
               value={profile.wakeTime}
               onChange={(e) => setProfile((p) => ({ ...p, wakeTime: e.target.value }))} />
           </div>
-          <div style={{ flex: "1 1 160px" }}>
-            <label style={{ fontSize: 13, fontWeight: 600, color: COLORS.textDark }}>Independent study, hours/week</label>
-            <input type="number" min="0" max="40" className="ss-input" style={{ marginTop: 6 }}
-              value={profile.studyHoursPerWeek}
-              onChange={(e) => setProfile((p) => ({ ...p, studyHoursPerWeek: Number(e.target.value) }))} />
-          </div>
         </div>
-        <p style={{ fontSize: 12, color: "#9a927a", marginTop: 0, marginBottom: 0 }}>
+        <p style={{ fontSize: 12, color: "#9a927a", marginTop: 0, marginBottom: 20 }}>
           That's {sleepDurationLabel(profile.bedTime, profile.wakeTime)} of sleep.
         </p>
+
+        <h4 style={{ color: COLORS.textDark, marginBottom: 8 }}>Independent study subjects</h4>
+        <p style={{ color: "#6b6650", fontSize: 13, marginTop: 0, marginBottom: 10 }}>
+          Each subject gets its own weekly target — auto-placed blocks rotate between subjects and are labeled by name.
+        </p>
+        <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+          <input className="ss-input" placeholder="e.g. Chemistry" style={{ flex: "1 1 160px" }}
+            value={subjForm.label} onChange={(e) => setSubjForm((f) => ({ ...f, label: e.target.value }))} />
+          <input type="number" min="0" max="40" className="ss-input" style={{ flex: "1 1 110px" }}
+            placeholder="Hours/week" value={subjForm.hoursPerWeek}
+            onChange={(e) => setSubjForm((f) => ({ ...f, hoursPerWeek: e.target.value }))} />
+          <button className="ss-btn-primary" onClick={addStudySubject}><Plus size={15} /></button>
+        </div>
+        <div style={{ maxHeight: 220, overflowY: "auto" }} className="ss-scroll">
+          <ManageList items={profile.studySubjects || []} renderLabel={studySubjectLabel} onDelete={deleteStudySubject} emptyText="No subjects added yet." />
+        </div>
         </>
         )}
 
