@@ -1196,6 +1196,7 @@ function ManagePanel({ data, onChange, onClose }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [assistantFor, setAssistantFor] = useState(null);
+  const [tab, setTab] = useState("sleep");
 
   const handleAssistantConfirm = (item) => {
     if (assistantFor === "Sport") setCommitments((c) => [...c, item]);
@@ -1280,6 +1281,15 @@ function ManagePanel({ data, onChange, onClose }) {
     }
   };
 
+  const tabs = [
+    { key: "sleep", label: "Sleep & study" },
+    { key: "commitments", label: "Commitments", count: fixedCommitments.length },
+    { key: "sports", label: "Sports", count: sports.length },
+    { key: "activities", label: "Activities", count: activities.length },
+    { key: "supercurricular", label: "Supercurricular", count: supercurricular.length },
+    { key: "holidays", label: "Holidays", count: holidays.length },
+  ];
+
   return (
     <div style={{
       position: "fixed", inset: 0, background: "rgba(10,12,20,.6)", zIndex: 50,
@@ -1295,6 +1305,22 @@ function ManagePanel({ data, onChange, onClose }) {
           <X size={20} style={{ cursor: "pointer" }} onClick={onClose} />
         </div>
 
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 20 }}>
+          {tabs.map((t) => (
+            <button key={t.key} type="button" onClick={() => setTab(t.key)}
+              style={{
+                padding: "7px 13px", borderRadius: 8, cursor: "pointer", fontSize: 12.5, fontWeight: 600,
+                border: `1px solid ${tab === t.key ? COLORS.textDark : "#DCD5BE"}`,
+                background: tab === t.key ? COLORS.textDark : "transparent",
+                color: tab === t.key ? COLORS.paper : COLORS.textDark,
+              }}>
+              {t.label}{t.count > 0 ? ` · ${t.count}` : ""}
+            </button>
+          ))}
+        </div>
+
+        {tab === "sleep" && (
+        <>
         <h4 style={{ color: COLORS.textDark, marginBottom: 8 }}>Sleep &amp; study targets</h4>
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 6 }}>
           <div style={{ flex: "1 1 140px" }}>
@@ -1316,10 +1342,14 @@ function ManagePanel({ data, onChange, onClose }) {
               onChange={(e) => setProfile((p) => ({ ...p, studyHoursPerWeek: Number(e.target.value) }))} />
           </div>
         </div>
-        <p style={{ fontSize: 12, color: "#9a927a", marginTop: 0, marginBottom: 20 }}>
+        <p style={{ fontSize: 12, color: "#9a927a", marginTop: 0, marginBottom: 0 }}>
           That's {sleepDurationLabel(profile.bedTime, profile.wakeTime)} of sleep.
         </p>
+        </>
+        )}
 
+        {tab === "commitments" && (
+        <>
         <h4 style={{ color: COLORS.textDark, marginBottom: 8 }}>Fixed commitments</h4>
         <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
           <input className="ss-input" placeholder="Label" style={{ flex: "1 1 140px" }}
@@ -1338,10 +1368,14 @@ function ManagePanel({ data, onChange, onClose }) {
             onChange={(e) => setCForm((f) => ({ ...f, end: e.target.value }))} />
           <button className="ss-btn-primary" onClick={addCommitment}><Plus size={15} /></button>
         </div>
-        <div style={{ maxHeight: 140, overflowY: "auto", marginBottom: 20 }} className="ss-scroll">
+        <div style={{ maxHeight: 260, overflowY: "auto" }} className="ss-scroll">
           <ManageList items={fixedCommitments} renderLabel={commitmentLabel} onDelete={deleteCommitment} emptyText="No commitments added yet." />
         </div>
+        </>
+        )}
 
+        {tab === "sports" && (
+        <>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h4 style={{ color: COLORS.textDark, marginBottom: 8 }}>Recurring sports</h4>
           <button className="ss-btn-ghost" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => setAssistantFor("Sport")}>
@@ -1364,10 +1398,14 @@ function ManagePanel({ data, onChange, onClose }) {
             onChange={(e) => setSForm((f) => ({ ...f, end: e.target.value }))} />
           <button className="ss-btn-primary" onClick={addSport}><Plus size={15} /></button>
         </div>
-        <div style={{ maxHeight: 140, overflowY: "auto", marginBottom: 20 }} className="ss-scroll">
+        <div style={{ maxHeight: 260, overflowY: "auto" }} className="ss-scroll">
           <ManageList items={sports} renderLabel={sportLabel} onDelete={deleteCommitment} emptyText="No recurring sports added yet." />
         </div>
+        </>
+        )}
 
+        {tab === "activities" && (
+        <>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h4 style={{ color: COLORS.textDark, marginBottom: 8 }}>External activities</h4>
           <button className="ss-btn-ghost" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => setAssistantFor("Extracurricular")}>
@@ -1405,10 +1443,14 @@ function ManagePanel({ data, onChange, onClose }) {
             <Plus size={15} />Add
           </button>
         </div>
-        <div style={{ maxHeight: 140, overflowY: "auto", marginBottom: 20 }} className="ss-scroll">
+        <div style={{ maxHeight: 260, overflowY: "auto" }} className="ss-scroll">
           <ManageList items={activities} renderLabel={activityLabel} onDelete={deleteActivity} emptyText="No external activities added yet." />
         </div>
+        </>
+        )}
 
+        {tab === "supercurricular" && (
+        <>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h4 style={{ color: COLORS.textDark, marginBottom: 8 }}>Supercurricular activity</h4>
           <button className="ss-btn-ghost" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => setAssistantFor("Supercurricular")}>
@@ -1446,10 +1488,14 @@ function ManagePanel({ data, onChange, onClose }) {
             <Plus size={15} />Add
           </button>
         </div>
-        <div style={{ maxHeight: 140, overflowY: "auto", marginBottom: 20 }} className="ss-scroll">
+        <div style={{ maxHeight: 260, overflowY: "auto" }} className="ss-scroll">
           <ManageList items={supercurricular} renderLabel={activityLabel} onDelete={deleteSupercurricular} emptyText="No supercurricular activity added yet." />
         </div>
+        </>
+        )}
 
+        {tab === "holidays" && (
+        <>
         <h4 style={{ color: COLORS.textDark, marginBottom: 8 }}>Holidays</h4>
         <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
           <input className="ss-input" placeholder="Label" style={{ flex: "1 1 140px" }}
@@ -1460,13 +1506,15 @@ function ManagePanel({ data, onChange, onClose }) {
             onChange={(e) => setHForm((f) => ({ ...f, end: e.target.value }))} />
           <button className="ss-btn-primary" onClick={addHoliday}><Plus size={15} /></button>
         </div>
-        <div style={{ maxHeight: 120, overflowY: "auto", marginBottom: 24 }} className="ss-scroll">
+        <div style={{ maxHeight: 260, overflowY: "auto" }} className="ss-scroll">
           <ManageList items={holidays} renderLabel={holidayLabel} onDelete={deleteHoliday} emptyText="No holidays added yet." />
         </div>
+        </>
+        )}
 
-        {error && <p style={{ color: COLORS.Work, fontSize: 13, marginTop: 0, marginBottom: 12 }}>{error}</p>}
+        {error && <p style={{ color: COLORS.Work, fontSize: 13, marginTop: 20, marginBottom: 12 }}>{error}</p>}
 
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20, paddingTop: 16, borderTop: "1px solid #E2DBC4" }}>
           <button className="ss-btn-ghost" onClick={onClose}>Cancel</button>
           <button className="ss-btn-primary" disabled={saving} onClick={save}>
             {saving ? <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> : <Check size={15} />}
