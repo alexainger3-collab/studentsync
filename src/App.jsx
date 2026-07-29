@@ -4,7 +4,7 @@ import {
   Square, CheckSquare, BarChart3, CalendarDays, Bot, RefreshCw, Sparkles, BookOpen, LogOut,
   Lock, Send, Sun, Star, Bell, BellOff,
 } from "lucide-react";
-import { COLORS, CATEGORY_ICON, CATEGORY_LABEL, TRACKABLE_CATEGORIES, GlobalStyle } from "./theme.jsx";
+import { COLORS, CATEGORY_ICON, CATEGORY_LABEL, TRACKABLE_CATEGORIES, GlobalStyle, Logo } from "./theme.jsx";
 import { AuthProvider, useAuth } from "./AuthContext.jsx";
 import { api } from "./api.js";
 import { Login } from "./Login.jsx";
@@ -2195,11 +2195,14 @@ function Dashboard({ data, setData }) {
         </div>
       )}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
-        <div>
-          <h1 className="ss-display" style={{ margin: 0, color: COLORS.textLight, fontSize: 26 }}>StudentSync</h1>
-          <p style={{ margin: "2px 0 0", color: COLORS.textMuted, fontSize: 13 }}>
-            Your week, balanced automatically around what's fixed.
-          </p>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Logo size={36} />
+          <div>
+            <h1 className="ss-display" style={{ margin: 0, color: COLORS.textLight, fontSize: 26 }}>StudentSync</h1>
+            <p style={{ margin: "2px 0 0", color: COLORS.textMuted, fontSize: 13 }}>
+              Your week, balanced automatically around what's fixed.
+            </p>
+          </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
           {user && (

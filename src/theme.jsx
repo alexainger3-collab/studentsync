@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { GraduationCap, Dumbbell, Briefcase, Sparkles, BookOpen, Moon, Library } from "lucide-react";
 
 /* ---------------------------------------------------------------------- */
@@ -41,6 +42,30 @@ export const CATEGORY_LABEL = {
 
 // Categories a user can tick off as completed and see compared in Statistics.
 export const TRACKABLE_CATEGORIES = ["Independent Study", "Sport", "Supercurricular"];
+
+// Brand mark: a calendar glyph with a "synced" checkmark accent, in the same
+// violet-to-teal gradient used for the upgrade CTA — keeps one consistent
+// accent color as the app's visual identity rather than introducing a new one.
+export function Logo({ size = 36 }) {
+  const gradId = `ss-logo-grad-${useId()}`;
+  return (
+    <svg width={size} height={size} viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="36" y2="36" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#7B61FF" />
+          <stop offset="1" stopColor="#17D9C4" />
+        </linearGradient>
+      </defs>
+      <rect width="36" height="36" rx="9" fill={`url(#${gradId})`} />
+      <rect x="8" y="11" width="20" height="17" rx="3" stroke="#fff" strokeWidth="2" />
+      <path d="M8 16H28" stroke="#fff" strokeWidth="2" />
+      <path d="M13 8V12" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+      <path d="M23 8V12" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+      <circle cx="21.5" cy="21.5" r="4.5" fill="#fff" />
+      <path d="M19.5 21.6L20.9 23L23.5 20" stroke={`url(#${gradId})`} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    </svg>
+  );
+}
 
 export function GlobalStyle() {
   return (
