@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   ChevronLeft, ChevronRight, Plus, X, Moon, Settings2, RotateCcw, Check, Loader2,
   Square, CheckSquare, BarChart3, CalendarDays, Bot, RefreshCw, Sparkles, BookOpen, LogOut,
-  Lock, Send, Sun,
+  Lock, Send, Sun, Star, Bell, BellOff,
 } from "lucide-react";
 import { COLORS, CATEGORY_ICON, CATEGORY_LABEL, TRACKABLE_CATEGORIES, GlobalStyle } from "./theme.jsx";
 import { AuthProvider, useAuth } from "./AuthContext.jsx";
@@ -66,6 +66,7 @@ const DEFAULT_DATA = {
   commitments: [],
   activities: [],
   supercurricular: [],
+  assignments: [],
   completions: {},
   sleepLog: [],
 };
@@ -171,6 +172,7 @@ function generateWeekSchedule(monday, data) {
           category: c.category,
           label: c.label,
           id: c.id,
+          priority: !!c.priority,
         });
       });
 
@@ -186,6 +188,7 @@ function generateWeekSchedule(monday, data) {
           category: "Extracurricular",
           label: a.label,
           id: a.id,
+          priority: !!a.priority,
         });
       });
 
@@ -206,6 +209,7 @@ function generateWeekSchedule(monday, data) {
           category: "Supercurricular",
           label: s.label,
           id: s.id,
+          priority: !!s.priority,
         });
       });
 
@@ -830,7 +834,7 @@ function TermThermometer({ term, holidays, weekMonday }) {
 /* ---------------------------------------------------------------------- */
 /*  Today agenda                                                           */
 /* ---------------------------------------------------------------------- */
-function TodayAgenda({ data, completions, onToggleComplete }) {
+function TodayAgenda({ data, completions, onToggleComplete, onToggleAssignment }) {
   const now = new Date();
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const todayISO = toISO(now);
@@ -838,6 +842,10 @@ function TodayAgenda({ data, completions, onToggleComplete }) {
   const today = todayWeekDays.find((d) => d.iso === todayISO);
   const blocks = today?.blocks || [];
   const nextBlock = blocks.find((b) => b.start > nowMin);
+
+  const assignments = data.assignments || [];
+  const overdue = assignments.filter((a) => !a.done && a.due < todayISO);
+  const dueToday = assignments.filter((a) => !a.done && a.due === todayISO);
 
   return (
     <div>
@@ -858,6 +866,35 @@ function TodayAgenda({ data, completions, onToggleComplete }) {
           </span>
         )}
       </div>
+
+      {(overdue.length > 0 || dueToday.length > 0) && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16 }}>
+          {[...overdue, ...dueToday].map((a) => (
+            <div key={a.id} style={{
+              display: "flex", alignItems: "center", gap: 10, padding: "9px 14px", borderRadius: 10,
+              background: COLORS.panel, border: `1px solid ${a.due < todayISO ? `${COLORS.Work}55` : COLORS.hair}`,
+            }}>
+              <button
+                onClick={() => onToggleAssignment(a.id)}
+                title="Mark as done"
+                style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: COLORS.textMuted, flexShrink: 0 }}
+              >
+                <Square size={16} />
+              </button>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: COLORS.textLight }}>
+                {a.subject ? `${a.subject} — ` : ""}{a.title}
+              </span>
+              {a.due < todayISO ? (
+                <span className="ss-mono" style={{ fontSize: 10, color: COLORS.Work, border: `1px solid ${COLORS.Work}55`, padding: "2px 6px", borderRadius: 6, flexShrink: 0 }}>
+                  OVERDUE
+                </span>
+              ) : (
+                <span className="ss-mono" style={{ fontSize: 10, color: COLORS.textMuted, flexShrink: 0 }}>Due today</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {blocks.length === 0 ? (
         <p style={{ color: COLORS.textMuted, fontSize: 13 }}>Nothing scheduled today.</p>
@@ -882,6 +919,7 @@ function TodayAgenda({ data, completions, onToggleComplete }) {
                 </div>
                 <div style={{ width: 3, alignSelf: "stretch", background: color, borderRadius: 2, flexShrink: 0 }} />
                 <Icon size={15} color={color} style={{ flexShrink: 0 }} />
+                {b.priority && <Star size={12} color="#E8A93D" fill="#E8A93D" style={{ flexShrink: 0 }} />}
                 <span style={{
                   flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: COLORS.textLight,
                   textDecoration: isDone ? "line-through" : "none",
@@ -990,6 +1028,7 @@ function CalendarGrid({ weekDays, completions, onToggleComplete }) {
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 4 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
                       <Icon size={10} color={color} style={{ flexShrink: 0 }} />
+                      {b.priority && <Star size={9} color="#E8A93D" fill="#E8A93D" style={{ flexShrink: 0 }} />}
                       <span style={{
                         fontSize: 11, fontWeight: 600, color: COLORS.textLight,
                         whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
@@ -1224,18 +1263,53 @@ const activityLabel = (a) => {
 };
 const holidayLabel = (h) => <>{h.start} → {h.end}</>;
 const studySubjectLabel = (s) => <>{s.hoursPerWeek}h / week</>;
+const assignmentLabel = (a) => <>{a.subject ? `${a.subject} · ` : ""}Due {a.due}</>;
 
 // Memoized so typing in an unrelated form field (all of ManagePanel's form state lives in
 // one component) doesn't force every list to re-render — only when `items` itself changes.
-const ManageList = React.memo(function ManageList({ items, renderLabel, onDelete, emptyText }) {
+// `onTogglePriority`, when passed, adds a star toggle for marking an item as priority
+// (priority items can trigger a browser notification shortly before they start).
+const ManageList = React.memo(function ManageList({ items, renderLabel, onDelete, onTogglePriority, emptyText }) {
   if (items.length === 0) return <p style={{ fontSize: 13, color: "#9a927a" }}>{emptyText}</p>;
   return items.map((item) => (
     <div key={item.id} style={{
-      display: "flex", justifyContent: "space-between", alignItems: "center",
+      display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8,
       background: "#fff", border: "1px solid #E2DBC4", borderRadius: 8, padding: "8px 12px", marginBottom: 6,
     }}>
-      <span style={{ fontSize: 13, color: COLORS.textDark }}>
+      <span style={{ fontSize: 13, color: COLORS.textDark, minWidth: 0 }}>
         <strong>{item.label}</strong> · {renderLabel(item)}
+      </span>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+        {onTogglePriority && (
+          <Star
+            size={16}
+            style={{ cursor: "pointer", color: item.priority ? "#E8A93D" : "#9a927a" }}
+            fill={item.priority ? "#E8A93D" : "none"}
+            title={item.priority ? "Priority — will notify before it starts" : "Mark as priority"}
+            onClick={() => onTogglePriority(item.id)}
+          />
+        )}
+        <X size={16} style={{ cursor: "pointer", color: "#9a927a" }} onClick={() => onDelete(item.id)} />
+      </div>
+    </div>
+  ));
+});
+
+const AssignmentList = React.memo(function AssignmentList({ items, onToggleDone, onDelete, emptyText }) {
+  if (items.length === 0) return <p style={{ fontSize: 13, color: "#9a927a" }}>{emptyText}</p>;
+  const sorted = [...items].sort((a, b) => (a.due < b.due ? -1 : 1));
+  return sorted.map((item) => (
+    <div key={item.id} style={{
+      display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8,
+      background: "#fff", border: "1px solid #E2DBC4", borderRadius: 8, padding: "8px 12px", marginBottom: 6,
+    }}>
+      <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: COLORS.textDark, minWidth: 0 }}>
+        <span onClick={() => onToggleDone(item.id)} style={{ cursor: "pointer", display: "flex", color: item.done ? COLORS.Sport : "#9a927a", flexShrink: 0 }}>
+          {item.done ? <CheckSquare size={16} /> : <Square size={16} />}
+        </span>
+        <span style={{ textDecoration: item.done ? "line-through" : "none" }}>
+          <strong>{item.title}</strong> · {assignmentLabel(item)}
+        </span>
       </span>
       <X size={16} style={{ cursor: "pointer", color: "#9a927a", flexShrink: 0 }} onClick={() => onDelete(item.id)} />
     </div>
@@ -1247,12 +1321,14 @@ function ManagePanel({ data, onChange, onClose }) {
   const [activities, setActivities] = useState(data.activities || []);
   const [supercurricular, setSupercurricular] = useState(data.supercurricular || []);
   const [holidays, setHolidays] = useState(data.holidays);
-  const [cForm, setCForm] = useState({ label: "", category: "School", day: 0, start: "09:00", end: "10:00" });
-  const [sForm, setSForm] = useState({ label: "", day: 0, start: "17:00", end: "18:00" });
-  const [aForm, setAForm] = useState({ label: "", recurring: true, day: 0, date: "", start: "09:00", end: "10:00" });
-  const [scForm, setScForm] = useState({ label: "", frequency: "weekly", day: 0, date: "", start: "19:00", end: "20:00" });
+  const [assignments, setAssignments] = useState(data.assignments || []);
+  const [cForm, setCForm] = useState({ label: "", category: "School", day: 0, start: "09:00", end: "10:00", priority: false });
+  const [sForm, setSForm] = useState({ label: "", day: 0, start: "17:00", end: "18:00", priority: false });
+  const [aForm, setAForm] = useState({ label: "", recurring: true, day: 0, date: "", start: "09:00", end: "10:00", priority: false });
+  const [scForm, setScForm] = useState({ label: "", frequency: "weekly", day: 0, date: "", start: "19:00", end: "20:00", priority: false });
   const [hForm, setHForm] = useState({ label: "", start: "", end: "" });
   const [subjForm, setSubjForm] = useState({ label: "", hoursPerWeek: 2 });
+  const [assignForm, setAssignForm] = useState({ title: "", subject: "", due: "" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [assistantFor, setAssistantFor] = useState(null);
@@ -1274,11 +1350,17 @@ function ManagePanel({ data, onChange, onClose }) {
   const deleteActivity = useCallback((id) => setActivities((list) => list.filter((x) => x.id !== id)), []);
   const deleteSupercurricular = useCallback((id) => setSupercurricular((list) => list.filter((x) => x.id !== id)), []);
   const deleteHoliday = useCallback((id) => setHolidays((list) => list.filter((x) => x.id !== id)), []);
+  const deleteAssignment = useCallback((id) => setAssignments((list) => list.filter((x) => x.id !== id)), []);
+
+  const toggleCommitmentPriority = useCallback((id) => setCommitments((list) => list.map((x) => x.id === id ? { ...x, priority: !x.priority } : x)), []);
+  const toggleActivityPriority = useCallback((id) => setActivities((list) => list.map((x) => x.id === id ? { ...x, priority: !x.priority } : x)), []);
+  const toggleSupercurricularPriority = useCallback((id) => setSupercurricular((list) => list.map((x) => x.id === id ? { ...x, priority: !x.priority } : x)), []);
+  const toggleAssignmentDone = useCallback((id) => setAssignments((list) => list.map((x) => x.id === id ? { ...x, done: !x.done } : x)), []);
 
   const addCommitment = () => {
     if (!cForm.label || !cForm.start || !cForm.end) return;
     setCommitments((c) => [...c, { ...cForm, day: Number(cForm.day), id: `c-${Date.now()}` }]);
-    setCForm({ label: "", category: "School", day: 0, start: "09:00", end: "10:00" });
+    setCForm({ label: "", category: "School", day: 0, start: "09:00", end: "10:00", priority: false });
   };
   const addSport = () => {
     if (!sForm.label || !sForm.start || !sForm.end) return;
@@ -1286,23 +1368,23 @@ function ManagePanel({ data, onChange, onClose }) {
       ...c,
       { ...sForm, category: "Sport", day: Number(sForm.day), id: `sport-${Date.now()}` },
     ]);
-    setSForm({ label: "", day: 0, start: "17:00", end: "18:00" });
+    setSForm({ label: "", day: 0, start: "17:00", end: "18:00", priority: false });
   };
   const addActivity = () => {
     if (!aForm.label || !aForm.start || !aForm.end) return;
     if (aForm.recurring) {
       setActivities((a) => [
         ...a,
-        { label: aForm.label, recurring: true, day: Number(aForm.day), date: null, start: aForm.start, end: aForm.end, id: `act-${Date.now()}` },
+        { label: aForm.label, recurring: true, day: Number(aForm.day), date: null, start: aForm.start, end: aForm.end, priority: aForm.priority, id: `act-${Date.now()}` },
       ]);
     } else {
       if (!aForm.date) return;
       setActivities((a) => [
         ...a,
-        { label: aForm.label, recurring: false, day: null, date: aForm.date, start: aForm.start, end: aForm.end, id: `act-${Date.now()}` },
+        { label: aForm.label, recurring: false, day: null, date: aForm.date, start: aForm.start, end: aForm.end, priority: aForm.priority, id: `act-${Date.now()}` },
       ]);
     }
-    setAForm({ label: "", recurring: true, day: 0, date: "", start: "09:00", end: "10:00" });
+    setAForm({ label: "", recurring: true, day: 0, date: "", start: "09:00", end: "10:00", priority: false });
   };
   const addSupercurricular = () => {
     if (!scForm.label || !scForm.start || !scForm.end) return;
@@ -1316,15 +1398,21 @@ function ManagePanel({ data, onChange, onClose }) {
         date: scForm.frequency === "once" ? scForm.date : null,
         start: scForm.start,
         end: scForm.end,
+        priority: scForm.priority,
         id: `sc-${Date.now()}`,
       },
     ]);
-    setScForm({ label: "", frequency: "weekly", day: 0, date: "", start: "19:00", end: "20:00" });
+    setScForm({ label: "", frequency: "weekly", day: 0, date: "", start: "19:00", end: "20:00", priority: false });
   };
   const addHoliday = () => {
     if (!hForm.label || !hForm.start || !hForm.end) return;
     setHolidays((h) => [...h, { ...hForm, id: `h-${Date.now()}` }]);
     setHForm({ label: "", start: "", end: "" });
+  };
+  const addAssignment = () => {
+    if (!assignForm.title || !assignForm.due) return;
+    setAssignments((list) => [...list, { ...assignForm, done: false, id: `assign-${Date.now()}` }]);
+    setAssignForm({ title: "", subject: "", due: "" });
   };
   const addStudySubject = () => {
     if (!subjForm.label || !subjForm.hoursPerWeek) return;
@@ -1341,7 +1429,7 @@ function ManagePanel({ data, onChange, onClose }) {
   const save = async () => {
     setSaving(true);
     setError("");
-    const next = { ...data, profile, commitments, activities, supercurricular, holidays };
+    const next = { ...data, profile, commitments, activities, supercurricular, holidays, assignments };
     try {
       await api.saveData(next);
       onChange(next);
@@ -1359,6 +1447,7 @@ function ManagePanel({ data, onChange, onClose }) {
     { key: "sports", label: "Sports", count: sports.length },
     { key: "activities", label: "Activities", count: activities.length },
     { key: "supercurricular", label: "Supercurricular", count: supercurricular.length },
+    { key: "assignments", label: "Assignments", count: assignments.filter((a) => !a.done).length },
     { key: "holidays", label: "Holidays", count: holidays.length },
   ];
 
@@ -1448,10 +1537,14 @@ function ManagePanel({ data, onChange, onClose }) {
             onChange={(e) => setCForm((f) => ({ ...f, start: e.target.value }))} />
           <input type="time" className="ss-input" style={{ flex: "1 1 90px" }} value={cForm.end}
             onChange={(e) => setCForm((f) => ({ ...f, end: e.target.value }))} />
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: COLORS.textDark, whiteSpace: "nowrap" }}>
+            <input type="checkbox" checked={cForm.priority} onChange={(e) => setCForm((f) => ({ ...f, priority: e.target.checked }))} />
+            Priority
+          </label>
           <button className="ss-btn-primary" onClick={addCommitment}><Plus size={15} /></button>
         </div>
         <div style={{ maxHeight: 260, overflowY: "auto" }} className="ss-scroll">
-          <ManageList items={fixedCommitments} renderLabel={commitmentLabel} onDelete={deleteCommitment} emptyText="No commitments added yet." />
+          <ManageList items={fixedCommitments} renderLabel={commitmentLabel} onDelete={deleteCommitment} onTogglePriority={toggleCommitmentPriority} emptyText="No commitments added yet." />
         </div>
         </>
         )}
@@ -1478,10 +1571,14 @@ function ManagePanel({ data, onChange, onClose }) {
             onChange={(e) => setSForm((f) => ({ ...f, start: e.target.value }))} />
           <input type="time" className="ss-input" style={{ flex: "1 1 90px" }} value={sForm.end}
             onChange={(e) => setSForm((f) => ({ ...f, end: e.target.value }))} />
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: COLORS.textDark, whiteSpace: "nowrap" }}>
+            <input type="checkbox" checked={sForm.priority} onChange={(e) => setSForm((f) => ({ ...f, priority: e.target.checked }))} />
+            Priority
+          </label>
           <button className="ss-btn-primary" onClick={addSport}><Plus size={15} /></button>
         </div>
         <div style={{ maxHeight: 260, overflowY: "auto" }} className="ss-scroll">
-          <ManageList items={sports} renderLabel={sportLabel} onDelete={deleteCommitment} emptyText="No recurring sports added yet." />
+          <ManageList items={sports} renderLabel={sportLabel} onDelete={deleteCommitment} onTogglePriority={toggleCommitmentPriority} emptyText="No recurring sports added yet." />
         </div>
         </>
         )}
@@ -1521,12 +1618,16 @@ function ManagePanel({ data, onChange, onClose }) {
             onChange={(e) => setAForm((f) => ({ ...f, start: e.target.value }))} />
           <input type="time" className="ss-input" value={aForm.end}
             onChange={(e) => setAForm((f) => ({ ...f, end: e.target.value }))} />
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: COLORS.textDark, whiteSpace: "nowrap" }}>
+            <input type="checkbox" checked={aForm.priority} onChange={(e) => setAForm((f) => ({ ...f, priority: e.target.checked }))} />
+            Priority
+          </label>
           <button className="ss-btn-primary" onClick={addActivity} style={{ whiteSpace: "nowrap" }}>
             <Plus size={15} />Add
           </button>
         </div>
         <div style={{ maxHeight: 260, overflowY: "auto" }} className="ss-scroll">
-          <ManageList items={activities} renderLabel={activityLabel} onDelete={deleteActivity} emptyText="No external activities added yet." />
+          <ManageList items={activities} renderLabel={activityLabel} onDelete={deleteActivity} onTogglePriority={toggleActivityPriority} emptyText="No external activities added yet." />
         </div>
         </>
         )}
@@ -1568,12 +1669,42 @@ function ManagePanel({ data, onChange, onClose }) {
             onChange={(e) => setScForm((f) => ({ ...f, start: e.target.value }))} />
           <input type="time" className="ss-input" value={scForm.end}
             onChange={(e) => setScForm((f) => ({ ...f, end: e.target.value }))} />
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: COLORS.textDark, whiteSpace: "nowrap" }}>
+            <input type="checkbox" checked={scForm.priority} onChange={(e) => setScForm((f) => ({ ...f, priority: e.target.checked }))} />
+            Priority
+          </label>
           <button className="ss-btn-primary" onClick={addSupercurricular} style={{ whiteSpace: "nowrap" }}>
             <Plus size={15} />Add
           </button>
         </div>
         <div style={{ maxHeight: 260, overflowY: "auto" }} className="ss-scroll">
-          <ManageList items={supercurricular} renderLabel={activityLabel} onDelete={deleteSupercurricular} emptyText="No supercurricular activity added yet." />
+          <ManageList items={supercurricular} renderLabel={activityLabel} onDelete={deleteSupercurricular} onTogglePriority={toggleSupercurricularPriority} emptyText="No supercurricular activity added yet." />
+        </div>
+        </>
+        )}
+
+        {tab === "assignments" && (
+        <>
+        <h4 style={{ color: COLORS.textDark, marginBottom: 8 }}>Assignments</h4>
+        <p style={{ color: "#6b6650", fontSize: 13, marginTop: 0, marginBottom: 10 }}>
+          Homework and coursework with a due date — separate from the time-blocked schedule. Shows up on Today until it's marked done.
+        </p>
+        <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+          <input className="ss-input" placeholder="e.g. Essay draft" style={{ flex: "1 1 160px" }}
+            value={assignForm.title} onChange={(e) => setAssignForm((f) => ({ ...f, title: e.target.value }))} />
+          <select className="ss-input" style={{ flex: "1 1 140px" }}
+            value={assignForm.subject} onChange={(e) => setAssignForm((f) => ({ ...f, subject: e.target.value }))}>
+            <option value="">No subject</option>
+            {(profile.studySubjects || []).map((s) => <option key={s.id} value={s.label}>{s.label}</option>)}
+          </select>
+          <input type="date" className="ss-input" style={{ flex: "1 1 140px" }} value={assignForm.due}
+            onChange={(e) => setAssignForm((f) => ({ ...f, due: e.target.value }))} />
+          <button className="ss-btn-primary" onClick={addAssignment} style={{ whiteSpace: "nowrap" }}>
+            <Plus size={15} />Add
+          </button>
+        </div>
+        <div style={{ maxHeight: 260, overflowY: "auto" }} className="ss-scroll">
+          <AssignmentList items={assignments} onToggleDone={toggleAssignmentDone} onDelete={deleteAssignment} emptyText="No assignments added yet." />
         </div>
         </>
         )}
@@ -1989,6 +2120,55 @@ function Dashboard({ data, setData }) {
     }
   };
 
+  const toggleAssignmentDone = async (id) => {
+    const assignments = (data.assignments || []).map((a) => (a.id === id ? { ...a, done: !a.done } : a));
+    const next = { ...data, assignments };
+    setData(next); // optimistic
+    try {
+      await api.saveData(next);
+    } catch (err) {
+      setData(data); // roll back
+      setSyncError(`Couldn't save that — ${err.message}`);
+    }
+  };
+
+  // Browser notifications for priority blocks — only fires while this tab is open
+  // (no service worker), so it's a best-effort reminder rather than a true
+  // background push. iOS Safari doesn't support this at all; Android/desktop do.
+  const [notifPermission, setNotifPermission] = useState(
+    typeof Notification !== "undefined" ? Notification.permission : "unsupported"
+  );
+  const notifiedRef = useRef(new Set());
+
+  const enableNotifications = async () => {
+    if (typeof Notification === "undefined") return;
+    const perm = await Notification.requestPermission();
+    setNotifPermission(perm);
+  };
+
+  useEffect(() => {
+    if (notifPermission !== "granted") return;
+    const check = () => {
+      const now = new Date();
+      const todayISO = toISO(now);
+      const nowMin = now.getHours() * 60 + now.getMinutes();
+      const today = generateWeekSchedule(startOfWeekMonday(now), data).find((d) => d.iso === todayISO);
+      if (!today) return;
+      today.blocks.forEach((b) => {
+        if (!b.priority) return;
+        const minsUntil = b.start - nowMin;
+        const notifyKey = `${todayISO}-${b.id}`;
+        if (minsUntil <= 10 && minsUntil >= 0 && !notifiedRef.current.has(notifyKey)) {
+          notifiedRef.current.add(notifyKey);
+          new Notification(b.label, { body: `Starts at ${minToLabel(b.start)}` });
+        }
+      });
+    };
+    check();
+    const interval = setInterval(check, 30000);
+    return () => clearInterval(interval);
+  }, [data, notifPermission]);
+
   const legendItems = ["School", "Independent Study", "Sport", "Extracurricular", "Supercurricular", "Work", "Sleep"];
 
   return (
@@ -2047,6 +2227,20 @@ function Dashboard({ data, setData }) {
           >
             {billingBusy ? "…" : tier === "paid" ? "PAID PLAN — manage" : trialEligible ? "FREE PLAN — start 14-day trial" : "FREE PLAN — upgrade $2.99/mo"}
           </button>
+          {notifPermission !== "unsupported" && (
+            <button className="ss-btn-ghost" style={{ borderColor: COLORS.hair, color: COLORS.textLight, background: COLORS.panel }}
+              onClick={enableNotifications} disabled={notifPermission === "granted" || notifPermission === "denied"}
+              title={
+                notifPermission === "granted" ? "Priority items will notify you while this tab is open"
+                : notifPermission === "denied" ? "Notifications are blocked in your browser settings"
+                : "Get notified shortly before priority items start"
+              }>
+              {notifPermission === "granted"
+                ? <Bell size={14} style={{ marginRight: 6, verticalAlign: -2 }} />
+                : <BellOff size={14} style={{ marginRight: 6, verticalAlign: -2 }} />}
+              {notifPermission === "granted" ? "Notifications on" : notifPermission === "denied" ? "Notifications blocked" : "Enable notifications"}
+            </button>
+          )}
           <button className="ss-btn-ghost" style={{ borderColor: COLORS.hair, color: COLORS.textLight, background: COLORS.panel }}
             onClick={() => setShowSleepLog(true)}>
             <Moon size={14} style={{ marginRight: 6, verticalAlign: -2 }} />Log sleep
@@ -2104,7 +2298,7 @@ function Dashboard({ data, setData }) {
 
       {page === "today" && (
         <div style={{ marginTop: 18 }}>
-          <TodayAgenda data={data} completions={data.completions || {}} onToggleComplete={toggleComplete} />
+          <TodayAgenda data={data} completions={data.completions || {}} onToggleComplete={toggleComplete} onToggleAssignment={toggleAssignmentDone} />
         </div>
       )}
 
