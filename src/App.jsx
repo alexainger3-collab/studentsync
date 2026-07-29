@@ -189,9 +189,15 @@ function generateWeekSchedule(monday, data) {
         });
       });
 
-    // Supercurricular activity (e.g. wider reading): recurring weekly or one-off, pauses on holidays.
+    // Supercurricular activity (e.g. wider reading): daily, weekly, or one-off, pauses on holidays.
+    // `frequency` is the current field; older items only have the `recurring` boolean.
     supercurricular
-      .filter((s) => (s.recurring ? s.day === i : s.date === iso))
+      .filter((s) => {
+        const freq = s.frequency || (s.recurring ? "weekly" : "once");
+        if (freq === "daily") return true;
+        if (freq === "weekly") return s.day === i;
+        return s.date === iso;
+      })
       .forEach((s) => {
         if (holiday) return;
         blocks.push({
@@ -1208,7 +1214,14 @@ function SchedulingAssistant({ data, category, onConfirm, onClose }) {
 /* ---------------------------------------------------------------------- */
 const commitmentLabel = (c) => <>{c.category} · {DAY_SHORT[c.day]} {c.start}–{c.end}</>;
 const sportLabel = (c) => <>Weekly · {DAY_SHORT[c.day]} {c.start}–{c.end}</>;
-const activityLabel = (a) => <>{a.recurring ? `Weekly · ${DAY_SHORT[a.day]}` : a.date} · {a.start}–{a.end}</>;
+// Handles both the legacy `recurring` boolean shape (External activities, and
+// older Supercurricular items) and the newer `frequency` field (Supercurricular's
+// daily/weekly/once), so items created either way display correctly.
+const activityLabel = (a) => {
+  const freq = a.frequency || (a.recurring ? "weekly" : "once");
+  const when = freq === "daily" ? "Daily" : freq === "weekly" ? `Weekly · ${DAY_SHORT[a.day]}` : a.date;
+  return <>{when} · {a.start}–{a.end}</>;
+};
 const holidayLabel = (h) => <>{h.start} → {h.end}</>;
 const studySubjectLabel = (s) => <>{s.hoursPerWeek}h / week</>;
 
@@ -1237,7 +1250,7 @@ function ManagePanel({ data, onChange, onClose }) {
   const [cForm, setCForm] = useState({ label: "", category: "School", day: 0, start: "09:00", end: "10:00" });
   const [sForm, setSForm] = useState({ label: "", day: 0, start: "17:00", end: "18:00" });
   const [aForm, setAForm] = useState({ label: "", recurring: true, day: 0, date: "", start: "09:00", end: "10:00" });
-  const [scForm, setScForm] = useState({ label: "", recurring: true, day: 0, date: "", start: "19:00", end: "20:00" });
+  const [scForm, setScForm] = useState({ label: "", frequency: "weekly", day: 0, date: "", start: "19:00", end: "20:00" });
   const [hForm, setHForm] = useState({ label: "", start: "", end: "" });
   const [subjForm, setSubjForm] = useState({ label: "", hoursPerWeek: 2 });
   const [saving, setSaving] = useState(false);
@@ -1293,19 +1306,20 @@ function ManagePanel({ data, onChange, onClose }) {
   };
   const addSupercurricular = () => {
     if (!scForm.label || !scForm.start || !scForm.end) return;
-    if (scForm.recurring) {
-      setSupercurricular((s) => [
-        ...s,
-        { label: scForm.label, recurring: true, day: Number(scForm.day), date: null, start: scForm.start, end: scForm.end, id: `sc-${Date.now()}` },
-      ]);
-    } else {
-      if (!scForm.date) return;
-      setSupercurricular((s) => [
-        ...s,
-        { label: scForm.label, recurring: false, day: null, date: scForm.date, start: scForm.start, end: scForm.end, id: `sc-${Date.now()}` },
-      ]);
-    }
-    setScForm({ label: "", recurring: true, day: 0, date: "", start: "19:00", end: "20:00" });
+    if (scForm.frequency === "once" && !scForm.date) return;
+    setSupercurricular((s) => [
+      ...s,
+      {
+        label: scForm.label,
+        frequency: scForm.frequency,
+        day: scForm.frequency === "weekly" ? Number(scForm.day) : null,
+        date: scForm.frequency === "once" ? scForm.date : null,
+        start: scForm.start,
+        end: scForm.end,
+        id: `sc-${Date.now()}`,
+      },
+    ]);
+    setScForm({ label: "", frequency: "weekly", day: 0, date: "", start: "19:00", end: "20:00" });
   };
   const addHoliday = () => {
     if (!hForm.label || !hForm.start || !hForm.end) return;
@@ -1526,23 +1540,25 @@ function ManagePanel({ data, onChange, onClose }) {
           </button>
         </div>
         <p style={{ color: "#6b6650", fontSize: 13, marginTop: 0, marginBottom: 10 }}>
-          Wider reading and subject enrichment, beyond the syllabus — weekly or just once. Pauses during holiday weeks.
+          Wider reading and subject enrichment, beyond the syllabus — daily, weekly, or just once. Pauses during holiday weeks.
         </p>
         <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
           <input className="ss-input" placeholder="e.g. Wider reading" style={{ flex: "1 1 160px" }}
             value={scForm.label} onChange={(e) => setScForm((f) => ({ ...f, label: e.target.value }))} />
           <select className="ss-input" style={{ flex: "1 1 120px" }}
-            value={scForm.recurring ? "recurring" : "once"}
-            onChange={(e) => setScForm((f) => ({ ...f, recurring: e.target.value === "recurring" }))}>
-            <option value="recurring">Weekly</option>
+            value={scForm.frequency}
+            onChange={(e) => setScForm((f) => ({ ...f, frequency: e.target.value }))}>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
             <option value="once">One-time</option>
           </select>
-          {scForm.recurring ? (
+          {scForm.frequency === "weekly" && (
             <select className="ss-input" style={{ flex: "1 1 120px" }}
               value={scForm.day} onChange={(e) => setScForm((f) => ({ ...f, day: e.target.value }))}>
               {DAY_NAMES.map((d, i) => <option key={d} value={i}>{d}</option>)}
             </select>
-          ) : (
+          )}
+          {scForm.frequency === "once" && (
             <input type="date" className="ss-input" style={{ flex: "1 1 140px" }} value={scForm.date}
               onChange={(e) => setScForm((f) => ({ ...f, date: e.target.value }))} />
           )}
