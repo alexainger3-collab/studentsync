@@ -2077,7 +2077,7 @@ function Dashboard({ data, setData }) {
       setBillingBusy(false);
     }
   };
-  const [page, setPage] = useState("calendar");
+  const [page, setPage] = useState("today");
   const [monday, setMonday] = useState(startOfWeekMonday(new Date()));
   const [showManage, setShowManage] = useState(false);
   const [showReset, setShowReset] = useState(false);
