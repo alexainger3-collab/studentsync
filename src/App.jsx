@@ -149,6 +149,18 @@ function invertWithinWindow(busy, windowStart, windowEnd) {
   return gaps;
 }
 
+// Items may carry an explicit `frequency` ("daily" | "weekly" | "once"). Older
+// activities/supercurricular records only have a `recurring` boolean, and
+// commitments originally had neither — they were always weekly. Resolving all
+// three shapes here keeps existing saved schedules working untouched.
+function matchesDay(item, dayIndex, iso) {
+  const freq = item.frequency
+    || (item.recurring === undefined ? "weekly" : item.recurring ? "weekly" : "once");
+  if (freq === "daily") return true;
+  if (freq === "weekly") return item.day === dayIndex;
+  return item.date === iso;
+}
+
 function generateWeekSchedule(monday, data) {
   const { profile, holidays, commitments, activities = [], supercurricular = [] } = data;
   const days = [];
@@ -163,7 +175,7 @@ function generateWeekSchedule(monday, data) {
     );
 
     commitments
-      .filter((c) => c.day === i)
+      .filter((c) => matchesDay(c, i, iso))
       .forEach((c) => {
         if (holiday && (c.category === "School" || c.category === "Extracurricular")) return;
         blocks.push({
@@ -176,10 +188,10 @@ function generateWeekSchedule(monday, data) {
         });
       });
 
-    // External activities: recurring weekly on a given day, or one-off on a specific date.
+    // External activities: daily, weekly on a given day, or one-off on a date.
     // Like other extracurricular time, they pause during holiday weeks.
     activities
-      .filter((a) => (a.recurring ? a.day === i : a.date === iso))
+      .filter((a) => matchesDay(a, i, iso))
       .forEach((a) => {
         if (holiday) return;
         blocks.push({
@@ -193,14 +205,8 @@ function generateWeekSchedule(monday, data) {
       });
 
     // Supercurricular activity (e.g. wider reading): daily, weekly, or one-off, pauses on holidays.
-    // `frequency` is the current field; older items only have the `recurring` boolean.
     supercurricular
-      .filter((s) => {
-        const freq = s.frequency || (s.recurring ? "weekly" : "once");
-        if (freq === "daily") return true;
-        if (freq === "weekly") return s.day === i;
-        return s.date === iso;
-      })
+      .filter((s) => matchesDay(s, i, iso))
       .forEach((s) => {
         if (holiday) return;
         blocks.push({
@@ -1114,8 +1120,8 @@ function SchedulingAssistant({ data, category, onConfirm, onClose }) {
     const item = form.recurrence === "weekly"
       ? (category === "Sport"
         ? { ...base, category: "Sport", day: candidate.day }
-        : { ...base, recurring: true, day: candidate.day, date: null })
-      : { ...base, recurring: false, day: null, date: candidate.date };
+        : { ...base, frequency: "weekly", day: candidate.day, date: null })
+      : { ...base, frequency: "once", day: null, date: candidate.date };
     onConfirm(item);
     onClose();
   };
@@ -1253,16 +1259,18 @@ function SchedulingAssistant({ data, category, onConfirm, onClose }) {
 /* ---------------------------------------------------------------------- */
 /*  Manage panel (edit commitments / holidays post-onboarding)             */
 /* ---------------------------------------------------------------------- */
-const commitmentLabel = (c) => <>{c.category} · {DAY_SHORT[c.day]} {c.start}–{c.end}</>;
-const sportLabel = (c) => <>Weekly · {DAY_SHORT[c.day]} {c.start}–{c.end}</>;
-// Handles both the legacy `recurring` boolean shape (External activities, and
-// older Supercurricular items) and the newer `frequency` field (Supercurricular's
-// daily/weekly/once), so items created either way display correctly.
-const activityLabel = (a) => {
-  const freq = a.frequency || (a.recurring ? "weekly" : "once");
-  const when = freq === "daily" ? "Daily" : freq === "weekly" ? `Weekly · ${DAY_SHORT[a.day]}` : a.date;
-  return <>{when} · {a.start}–{a.end}</>;
+// Mirrors matchesDay()'s handling of the `frequency` / legacy `recurring` /
+// neither shapes, so a row reads the same way it actually schedules.
+const whenLabel = (item) => {
+  const freq = item.frequency
+    || (item.recurring === undefined ? "weekly" : item.recurring ? "weekly" : "once");
+  if (freq === "daily") return "Daily";
+  if (freq === "weekly") return DAY_SHORT[item.day];
+  return item.date;
 };
+const commitmentLabel = (c) => <>{c.category} · {whenLabel(c)} {c.start}–{c.end}</>;
+const sportLabel = (c) => <>{whenLabel(c)} · {c.start}–{c.end}</>;
+const activityLabel = (a) => <>{whenLabel(a)} · {a.start}–{a.end}</>;
 const holidayLabel = (h) => <>{h.start} → {h.end}</>;
 const studySubjectLabel = (s) => <>{s.hoursPerWeek}h / week</>;
 const assignmentLabel = (a) => <>{a.subject ? `${a.subject} · ` : ""}Due {a.due}</>;
@@ -1324,9 +1332,9 @@ function ManagePanel({ data, onChange, onClose }) {
   const [supercurricular, setSupercurricular] = useState(data.supercurricular || []);
   const [holidays, setHolidays] = useState(data.holidays);
   const [assignments, setAssignments] = useState(data.assignments || []);
-  const [cForm, setCForm] = useState({ label: "", category: "School", day: 0, start: "09:00", end: "10:00", priority: false });
+  const [cForm, setCForm] = useState({ label: "", category: "School", frequency: "weekly", day: 0, start: "09:00", end: "10:00", priority: false });
   const [sForm, setSForm] = useState({ label: "", day: 0, start: "17:00", end: "18:00", priority: false });
-  const [aForm, setAForm] = useState({ label: "", recurring: true, day: 0, date: "", start: "09:00", end: "10:00", priority: false });
+  const [aForm, setAForm] = useState({ label: "", frequency: "weekly", day: 0, date: "", start: "09:00", end: "10:00", priority: false });
   const [scForm, setScForm] = useState({ label: "", frequency: "weekly", day: 0, date: "", start: "19:00", end: "20:00", priority: false });
   const [hForm, setHForm] = useState({ label: "", start: "", end: "" });
   const [subjForm, setSubjForm] = useState({ label: "", hoursPerWeek: 2 });
@@ -1361,8 +1369,11 @@ function ManagePanel({ data, onChange, onClose }) {
 
   const addCommitment = () => {
     if (!cForm.label || !cForm.start || !cForm.end) return;
-    setCommitments((c) => [...c, { ...cForm, day: Number(cForm.day), id: `c-${Date.now()}` }]);
-    setCForm({ label: "", category: "School", day: 0, start: "09:00", end: "10:00", priority: false });
+    setCommitments((c) => [
+      ...c,
+      { ...cForm, day: cForm.frequency === "weekly" ? Number(cForm.day) : null, id: `c-${Date.now()}` },
+    ]);
+    setCForm({ label: "", category: "School", frequency: "weekly", day: 0, start: "09:00", end: "10:00", priority: false });
   };
   const addSport = () => {
     if (!sForm.label || !sForm.start || !sForm.end) return;
@@ -1374,19 +1385,21 @@ function ManagePanel({ data, onChange, onClose }) {
   };
   const addActivity = () => {
     if (!aForm.label || !aForm.start || !aForm.end) return;
-    if (aForm.recurring) {
-      setActivities((a) => [
-        ...a,
-        { label: aForm.label, recurring: true, day: Number(aForm.day), date: null, start: aForm.start, end: aForm.end, priority: aForm.priority, id: `act-${Date.now()}` },
-      ]);
-    } else {
-      if (!aForm.date) return;
-      setActivities((a) => [
-        ...a,
-        { label: aForm.label, recurring: false, day: null, date: aForm.date, start: aForm.start, end: aForm.end, priority: aForm.priority, id: `act-${Date.now()}` },
-      ]);
-    }
-    setAForm({ label: "", recurring: true, day: 0, date: "", start: "09:00", end: "10:00", priority: false });
+    if (aForm.frequency === "once" && !aForm.date) return;
+    setActivities((a) => [
+      ...a,
+      {
+        label: aForm.label,
+        frequency: aForm.frequency,
+        day: aForm.frequency === "weekly" ? Number(aForm.day) : null,
+        date: aForm.frequency === "once" ? aForm.date : null,
+        start: aForm.start,
+        end: aForm.end,
+        priority: aForm.priority,
+        id: `act-${Date.now()}`,
+      },
+    ]);
+    setAForm({ label: "", frequency: "weekly", day: 0, date: "", start: "09:00", end: "10:00", priority: false });
   };
   const addSupercurricular = () => {
     if (!scForm.label || !scForm.start || !scForm.end) return;
@@ -1532,9 +1545,16 @@ function ManagePanel({ data, onChange, onClose }) {
             {["School", "Work"].map((c) => <option key={c}>{c}</option>)}
           </select>
           <select className="ss-input" style={{ flex: "1 1 110px" }}
-            value={cForm.day} onChange={(e) => setCForm((f) => ({ ...f, day: e.target.value }))}>
-            {DAY_NAMES.map((d, i) => <option key={d} value={i}>{d}</option>)}
+            value={cForm.frequency} onChange={(e) => setCForm((f) => ({ ...f, frequency: e.target.value }))}>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
           </select>
+          {cForm.frequency === "weekly" && (
+            <select className="ss-input" style={{ flex: "1 1 110px" }}
+              value={cForm.day} onChange={(e) => setCForm((f) => ({ ...f, day: e.target.value }))}>
+              {DAY_NAMES.map((d, i) => <option key={d} value={i}>{d}</option>)}
+            </select>
+          )}
           <input type="time" className="ss-input" style={{ flex: "1 1 90px" }} value={cForm.start}
             onChange={(e) => setCForm((f) => ({ ...f, start: e.target.value }))} />
           <input type="time" className="ss-input" style={{ flex: "1 1 90px" }} value={cForm.end}
@@ -1594,23 +1614,25 @@ function ManagePanel({ data, onChange, onClose }) {
           </button>
         </div>
         <p style={{ color: "#6b6650", fontSize: 13, marginTop: 0, marginBottom: 10 }}>
-          Anything outside school, work and sport — weekly or just once. These pause during holiday weeks.
+          Anything outside school, work and sport — daily, weekly, or just once. These pause during holiday weeks.
         </p>
         <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
           <input className="ss-input" placeholder="e.g. Volunteering" style={{ flex: "1 1 160px" }}
             value={aForm.label} onChange={(e) => setAForm((f) => ({ ...f, label: e.target.value }))} />
           <select className="ss-input" style={{ flex: "1 1 120px" }}
-            value={aForm.recurring ? "recurring" : "once"}
-            onChange={(e) => setAForm((f) => ({ ...f, recurring: e.target.value === "recurring" }))}>
-            <option value="recurring">Weekly</option>
+            value={aForm.frequency}
+            onChange={(e) => setAForm((f) => ({ ...f, frequency: e.target.value }))}>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
             <option value="once">One-time</option>
           </select>
-          {aForm.recurring ? (
+          {aForm.frequency === "weekly" && (
             <select className="ss-input" style={{ flex: "1 1 120px" }}
               value={aForm.day} onChange={(e) => setAForm((f) => ({ ...f, day: e.target.value }))}>
               {DAY_NAMES.map((d, i) => <option key={d} value={i}>{d}</option>)}
             </select>
-          ) : (
+          )}
+          {aForm.frequency === "once" && (
             <input type="date" className="ss-input" style={{ flex: "1 1 140px" }} value={aForm.date}
               onChange={(e) => setAForm((f) => ({ ...f, date: e.target.value }))} />
           )}
